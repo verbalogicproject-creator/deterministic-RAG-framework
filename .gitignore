@@ -1,0 +1,17 @@
+# Built indexes are reproducible from source by `drf build`, and their
+# manifest content_hash is what makes two builds comparable. Committing a
+# .db would also commit SQLite's header change counter, which differs between
+# byte-identical builds - exactly the fragile comparison this project avoids.
+*.db
+*.db-journal
+*.db-wal
+
+# Generated documentation. Rendered from spec/ by `drf docs build` (M1.7);
+# a hand-edit must fail a test, so the rendered output is not the source.
+/docs/*.md
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/

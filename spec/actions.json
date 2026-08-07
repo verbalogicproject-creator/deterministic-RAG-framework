@@ -1,0 +1,95 @@
+{
+  "spec_version": 1,
+  "description": "The action registry. Source of truth for what operations exist and what each guarantees. tests/test_contract.py asserts a bijection between this file and the @action-decorated symbols in drf/ - neither can drift from the other.",
+  "axes": {
+    "determinism": {
+      "deterministic": "Same inputs always produce the same output. Enforced by replay check in drf/contract.py, not assumed.",
+      "probabilistic": "Output may vary for identical inputs. Must declare a confidence in [0.0, 1.0]."
+    },
+    "authority": {
+      "authoritative": "May influence the ranking of results.",
+      "advisory": "May never influence ranking. Results are boxed in Advisory[T] and can only be appended below authoritative results."
+    },
+    "note": "The axes are orthogonal. A deterministic action may be advisory; a probabilistic action may never be authoritative."
+  },
+  "invariant_determinism_rule": "Per SAT-Graph RAG (arXiv 2510.06002): an action whose inputs consist exclusively of formal IDs plus frozen index state MUST be labelled deterministic. tests/test_contract.py enforces this.",
+  "actions": [
+    {
+      "name": "ingest.build_index",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Build the content-addressed index from a source knowledge graph.",
+      "guarantee": "Two builds from identical source bytes produce identical manifest content_hash."
+    },
+    {
+      "name": "store.load_manifest",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Read and validate the index manifest.",
+      "guarantee": "Fails loudly if the manifest content_hash does not match the index it describes."
+    },
+    {
+      "name": "tokenize.terms",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Normalise text to an ordered term list. Shared by index and query paths.",
+      "guarantee": "One tokenizer definition; indexing and querying cannot diverge."
+    },
+    {
+      "name": "lexical.candidates",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Union of postings over the sorted query terms.",
+      "guarantee": "Complete, not truncated: this is the exact support of BM25, so no candidate with nonzero score can be lost. There is no LIMIT and therefore no ordering dependency."
+    },
+    {
+      "name": "lexical.bm25_score",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Okapi BM25 with k1, b and document-length normalisation.",
+      "guarantee": "Contributions summed with math.fsum in sorted-term order, then quantised to int. Bit-identical across platforms."
+    },
+    {
+      "name": "graph.expand",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Bounded breadth-first expansion from the top-ranked seeds.",
+      "guarantee": "Neighbours visited in sorted node_id order; seed slice is taken from an already-total order."
+    },
+    {
+      "name": "stage1.rank",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Produce the authoritative total order D.",
+      "guarantee": "Sort key ends in the content-addressed node_id, which is injective over the candidate set. The induced order is strict and total, so output is independent of input permutation and of sort stability."
+    },
+    {
+      "name": "neural.propose_from_anchors",
+      "determinism": "deterministic",
+      "authority": "advisory",
+      "summary": "Propose nodes similar to the top-ranked members of D, using frozen vectors.",
+      "guarantee": "Deterministic because it reads frozen vectors only. Advisory because it may never reorder D. This action is the clearest demonstration that the two axes are independent."
+    },
+    {
+      "name": "neural.encode_query_remote",
+      "determinism": "deterministic",
+      "authority": "advisory",
+      "summary": "Encode query text via a remote embedding server.",
+      "determinism_evidence": {
+        "measured": "2026-08-07",
+        "endpoint": "llama.cpp server, BAAI/bge-large-en-v1.5 Q4_0 GGUF, dim=1024",
+        "protocol": "5 sequential identical requests; plus single-input vs in-batch comparison",
+        "result": "All 5 responses byte-identical. Batched and unbatched vectors byte-identical.",
+        "caveat": "This is a property of one server build under light load, not of remote embedders in general. The replay check in drf/contract.py stays armed so that any drift fails loudly rather than silently degrading reproducibility."
+      },
+      "guarantee": "Advisory regardless of determinism. A network failure, timeout, or garbage response can at worst contribute nothing."
+    },
+    {
+      "name": "merge.append_advisory",
+      "determinism": "deterministic",
+      "authority": "authoritative",
+      "summary": "Append advisory proposals below the authoritative order.",
+      "guarantee": "order(D) is preserved exactly. Enforced by a runtime postcondition that runs on every query, not only in tests. The only module permitted to unwrap Advisory values."
+    }
+  ]
+}

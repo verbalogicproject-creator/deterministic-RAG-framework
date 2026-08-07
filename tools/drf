@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""drf - Deterministic RAG Framework command line.
+
+Subcommands are added as milestones land. M1.1 provides:
+
+    drf build   --source SRC [--out PATH]     build an index
+    drf verify  --index PATH [--compare PATH] check a manifest, or compare two
+    drf inspect --index PATH                  show what an index contains
+
+Every command prints the manifest `content_hash`, because that is the value
+that makes two builds comparable.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from drf.ingest.build import build_index          # noqa: E402
+from drf.store import connect, read_manifest, table_count  # noqa: E402
+
+DEFAULT_OUT = "index.db"
+
+
+def cmd_build(args: argparse.Namespace) -> int:
+    value, justification = build_index(
+        source_path=args.source, out_path=args.out
+    )
+    content = value["content"]
+    print(f"built  {args.out}")
+    print(f"  content_hash  {value['content_hash']}")
+    for key in ("nodes", "edges", "embeddings"):
+        print(f"  {key:<13} {content['counts'][key]}")
+    print(f"  collapsed     {content['counts']['collapsed_groups']} duplicate groups")
+    print(f"  dropped       {content['counts']['dropped']}")
+    for record in content["dropped"]:
+        detail = record["detail"]
+        print(f"    - {record['kind']}/{record['reason']}: "
+              f"{detail.get('from', detail.get('node'))} -> {detail.get('to', '')}"
+              f" [{detail.get('type', detail.get('model', ''))}]")
+    if args.json:
+        print(json.dumps(justification.to_dict(), indent=2))
+    return 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    from drf.hashing import sha256_value
+
+    conn = connect(args.index)
+    manifest = read_manifest(conn)
+    recomputed = sha256_value(manifest["content"])
+    stored = manifest["content_hash"]
+    ok = recomputed == stored
+    print(f"index    {args.index}")
+    print(f"  stored      {stored}")
+    print(f"  recomputed  {recomputed}")
+    print(f"  intact      {'yes' if ok else 'NO - manifest has been altered'}")
+
+    for table in ("nodes", "edges", "embeddings"):
+        claimed = manifest["content"]["counts"][table]
+        actual = table_count(conn, table)
+        flag = "ok" if claimed == actual else "MISMATCH"
+        print(f"  {table:<11} manifest={claimed} db={actual} {flag}")
+        ok = ok and claimed == actual
+    conn.close()
+
+    if args.compare:
+        other = connect(args.compare)
+        other_manifest = read_manifest(other)
+        other.close()
+        same = other_manifest["content_hash"] == stored
+        print(f"\ncompare  {args.compare}")
+        print(f"  content_hash  {other_manifest['content_hash']}")
+        print(f"  identical     {'yes' if same else 'NO'}")
+        ok = ok and same
+
+    return 0 if ok else 1
+
+
+def cmd_inspect(args: argparse.Namespace) -> int:
+    conn = connect(args.index)
+    manifest = read_manifest(conn)
+    print(json.dumps(manifest, indent=2, ensure_ascii=False))
+    conn.close()
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="drf", description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("build", help="build an index from a source KG")
+    p.add_argument("--source", required=True)
+    p.add_argument("--out", default=DEFAULT_OUT)
+    p.add_argument("--json", action="store_true", help="print the justification")
+    p.set_defaults(func=cmd_build)
+
+    p = sub.add_parser("verify", help="check an index against its manifest")
+    p.add_argument("--index", default=DEFAULT_OUT)
+    p.add_argument("--compare", help="a second index whose content_hash must match")
+    p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("inspect", help="print an index manifest")
+    p.add_argument("--index", default=DEFAULT_OUT)
+    p.set_defaults(func=cmd_inspect)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
