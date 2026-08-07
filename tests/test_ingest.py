@@ -307,24 +307,41 @@ def test_dangling_edges_are_dropped_and_named(built, source_conn):
 
 
 @requires_source
-def test_dangling_edges_were_not_silently_repaired(built):
-    """No dropped edge reappears in the index under a fuzzy-matched target.
+def test_dangling_edges_were_not_silently_repaired(built, source_conn):
+    """No dangling edge reappears in the index under a fuzzy-matched target.
 
     Three of the four dangling targets have plausible near-matches in the
     corpus. Resolving them by string similarity would be a guess inside a
     build that claims determinism, so the index must contain no edge whose
-    source slug pair matches a dropped one.
+    source slug pair matches a dangling one.
+
+    The dangling set is derived from the **source**, deliberately. An earlier
+    version of this test read it from `manifest.dropped`, which made it
+    vacuous in exactly the case it was written for: if the build repaired the
+    orphans, nothing would be dropped, the set would be empty, and the empty
+    set is disjoint from everything. The falsifier registry caught that -
+    the fuzzy-repair mutation left this test green.
+
+    Verified against the source: all four dangling `(from, type)` pairs have
+    zero *valid* edges, so a live match can only mean a repair happened.
     """
-    manifest = read_manifest(built["conn"])
-    dropped_pairs = {
-        (d["detail"]["from"], d["detail"]["type"])
-        for d in manifest["content"]["dropped"] if d["kind"] == "edge"
+    dangling_pairs = {
+        (row[0], row[1]) for row in source_conn.execute(
+            "SELECT from_node, type FROM edges e WHERE NOT EXISTS"
+            " (SELECT 1 FROM nodes n WHERE n.id = e.to_node)"
+            " OR NOT EXISTS (SELECT 1 FROM nodes n WHERE n.id = e.from_node)"
+        )
     }
+    assert len(dangling_pairs) == MEASURED_DANGLING_EDGES
+
     by_ref = {n.id: n.source_ref for n in iter_nodes(built["conn"])}
     live_pairs = {
         (by_ref[e.from_id], e.type) for e in iter_edges(built["conn"])
     }
-    assert dropped_pairs.isdisjoint(live_pairs)
+    assert dangling_pairs.isdisjoint(live_pairs), (
+        f"a dangling edge was repaired rather than dropped: "
+        f"{sorted(dangling_pairs & live_pairs)}"
+    )
 
 
 @requires_source

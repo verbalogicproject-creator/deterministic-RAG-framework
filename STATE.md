@@ -73,6 +73,13 @@ Three existing decisions are the same principle in different clothes:
 | `math.fsum` for score accumulation | `fixed.py:exact_sum` | A correctly-rounded sum of a multiset is *unique*, so the result does not depend on summation order. Stronger than the portability argument in that docstring. |
 | Injective 6-tuple sort key | `retrieval/stage1.py` (M1.3) | Ending the key with the content-addressed node id makes it injective → strict total order → `sorted()` agrees on every input permutation, and sort stability becomes irrelevant. |
 
+### Milestone gate: harvest, then audit
+
+**Accumulated knowledge from step *n* changes what step *n+1* is worth.** Run both halves before writing any code for a milestone:
+
+- **Harvest** *(constructive, needs judgement)* — what did step *n* measure that resolves an open question in step *n+1*? M1.1 → M1.2 produced six: `avgdl`=18.9 with a 4–61 spread (so `b` is load-bearing), 0 empty descriptions (so `avgdl` needs no guard), `source_ref` 71% duplicate tokens (excluded from the document), `type` crushed by IDF (excluded), the commutativity rule (killed a checkpoint), and the DDL-grep control test (generalised into the falsifier registry).
+- **Audit** *(destructive, mechanised)* — did step *n*'s new rule make a pending checkpoint vacuous? This half does **not** need judgement, so it must not depend on anyone remembering: see `spec/invariants.json`.
+
 ---
 
 ## Built so far (M1.0 ✅)
@@ -125,9 +132,38 @@ Proven at this checkpoint:
 
 **Collapse rule decision (M1.1):** conflict-free union — merge duplicate variants key by key, **raise** if two assign different values to one key. Measured: 44 groups byte-identical, 4 divergent but conflict-free, **0 genuinely conflicting**. Chosen over "richest wins" / "strip metadata" / "blind union" / "always refuse" because it is the only one that is *commutative* — see the governing design rule above.
 
-## Next: M1.2 — `tokenize.py`, `bm25.py`, `lexical.py`
+## M1.2.0 ✅ — falsifier registry
 
-**Refined after M1.1.** Unchanged from the original plan: BM25 must match a hand-computed 5-doc reference; `len(candidates) == len(posting_union)`; all scores are `int`. Four changes follow.
+`spec/invariants.json` + `tests/conftest.py` + `tests/test_falsifiers.py`. Each checkpoint invariant names a **falsifier**: a mutation under which the named test *must* fail. Run in subprocesses; a surviving test is reported as vacuous. Three exemptions are recorded with reasons (properties already guarded at runtime by `build.py` or the contract, where a falsifier would prove the guard, not the test).
+
+**It caught two real problems on its first run:**
+
+1. **`test_dangling_edges_were_not_silently_repaired` was broken.** It derived the dropped set from `manifest.dropped`. Under repair, nothing is dropped → empty set → disjoint from everything → green. It could never detect the thing it was named for. Now derives the dangling pairs from the **source**. (Verified safe: all 4 dangling `(from,type)` pairs have 0 valid edges.)
+2. **The hash-seed falsifier was a no-op.** The corpus has exactly 1 embedding model and 1 dimension, so `list(set)` == `sorted(set)`. Retargeted at node types (25 values). Finding about the corpus: **no multi-element set currently reaches `content_hash`**, so that test guards a bug class this data cannot exhibit unaided.
+
+## Prior art reviewed: `~/Downloads/synthesis-rules/python_apps_*`
+
+| File | Verdict |
+|---|---|
+| `python_apps_hybrid_query.py` (449) | Negative reference — see below |
+| `python_apps_kg_builder.py` (317) | FTS5 pattern, **but the triggers are buggy** |
+| `python_apps_kg.db` (4.7 MB) | Corrupt (2× duplication). Unusable. |
+| `python_apps_embeddings.py` (605) | 384-d MiniLM path; not used in M1.2 |
+
+**⚠️ Plan correction.** The build plan says lift `python_apps_kg_builder.py:68-93` (FTS5 external-content + 3 sync triggers) **verbatim**. Do not. Measured: for an external-content FTS5 table, `DELETE FROM fts WHERE rowid=…` and `UPDATE fts SET …` do **not** remove old terms from the term index. After an UPDATE the stale term still matches, and `INSERT INTO fts(fts) VALUES('integrity-check')` **passes**, so the corruption is silent. The documented pattern is `INSERT INTO fts(fts, rowid, …) VALUES('delete', old.rowid, …)` followed by a fresh insert. Affects M1.3/M3, not M1.2.
+
+**Old engine scorer, exactly:** `idf * (tf*k1)/(tf+k1)` with `k1=2.5`, no `b`, no `avgdl`.
+- Measured vs proper BM25: **27.2%** discordant pairs @10, top-1 changed 9/15, mean top-1 length 28.1 vs 15.9 tokens.
+- I predicted `k1=2.5` would compound the length bias. **It does not** — 27.2% vs 26.2% at `k1=1.2`. Reason: **tf==1 for 82.7%** of (doc, term) pairs in a ~19-token corpus, so `k1` (which controls tf saturation) has almost nothing to act on. `b` is the entire defect; `k1` is a safe tunable here.
+- The numerator `tf*k1` instead of `tf*(k1+1)` is a monotone rescale — **not** a ranking defect. Do not list it as one.
+
+**Third truncation found:** `python_apps_hybrid_query.py:339` is `' OR '.join(keywords[:10])` — queries silently truncated to their first 10 terms, on top of the unordered `LIMIT 100` (`:347`) and the `[:15]` boundary (`:307`). M1.2's `candidates = ⋃ postings(t)` must carry no such cap; `len(candidates) == len(posting_union)` is exactly that guard.
+
+## Next: M1.2.1–M1.2.4 — `tokenize.py`, `bm25.py`, `lexical.py`
+
+**Document definition (decided, binds `PARSER_VERSION`): `name + description`.** `source_ref` excluded — 71% of its tokens already present, 84/266 docs gain zero, and duplicates inflate `tf` on title terms. `type` excluded — 29/30 tokens already in vocabulary and 101 docs share `use_case`, so IDF crushes it; type belongs in a structured filter.
+
+Unchanged from the original plan: BM25 must match a hand-computed 5-doc reference; `len(candidates) == len(posting_union)`; all scores are `int`. Four changes follow.
 
 ### Corpus facts, measured (`tools/measure_length_norm.py`)
 

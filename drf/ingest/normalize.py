@@ -169,6 +169,23 @@ def collapse_edge_group(variants: list[EdgeRecord]) -> EdgeRecord:
     return variants[0]._replace(metadata=merged)
 
 
+def resolve_endpoint(src_ref: str, id_map: dict[str, str]) -> str | None:
+    """Map a source slug to a content id, or None if it does not exist.
+
+    The single place endpoint resolution policy lives. It is - and must remain
+    - an exact lookup. Anything cleverer here (prefix matching, edit distance,
+    "did you mean") would be a heuristic guess inside a build that claims
+    determinism, and it would be invisible: a wrongly-resolved edge produces a
+    perfectly valid-looking index that silently corrupts every traversal
+    crossing it.
+
+    Isolated as a named function so that `spec/invariants.json` can falsify it
+    - the fuzzy-repair falsifier replaces exactly this, and
+    `test_dangling_edges_were_not_silently_repaired` must fail when it does.
+    """
+    return id_map.get(src_ref)
+
+
 def normalize_edges(
     source_edges: list[SourceEdge],
     id_map: dict[str, str],
@@ -194,8 +211,8 @@ def normalize_edges(
     groups: dict[str, list[EdgeRecord]] = {}
 
     for se in source_edges:
-        from_id = id_map.get(se.from_src)
-        to_id = id_map.get(se.to_src)
+        from_id = resolve_endpoint(se.from_src, id_map)
+        to_id = resolve_endpoint(se.to_src, id_map)
         if from_id is None or to_id is None:
             dropped.append(Dropped(
                 kind="edge",

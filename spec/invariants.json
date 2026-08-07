@@ -1,0 +1,58 @@
+{
+  "spec_version": 1,
+  "description": "Checkpoint invariants and their falsifiers. A falsifier is a specific mutation of the implementation under which the named test MUST fail. A test that survives its own falsifier cannot fail, and a test that cannot fail proves nothing - so tests/test_falsifiers.py runs each mutation in a subprocess and asserts the target test breaks.",
+  "rationale": "Adopted at M1.2 after a governing rule adopted mid-project (commutativity, see STATE.md) silently downgraded a planned M1.2 checkpoint from 'proves something' to 'cannot fail'. Nothing would have flagged it; the suite would still have been green. Review habits are documentation. This makes vacuity a red test.",
+  "scope": "Deliberately limited to properties where the TEST is the sole line of defence. Some checkpoints are also guarded at runtime - build.py raises BuildError when manifest counts disagree with what was written, and the contract replay check catches in-process irreproducibility. Falsifying those would prove the guard works, not the test, so they are listed under not_falsified with the reason.",
+  "invariants": [
+    {
+      "id": "ddl_forbidden_constructs",
+      "test": "tests/test_ingest.py::test_ddl_contains_no_forbidden_constructs",
+      "asserts": "The built index DDL contains zero AUTOINCREMENT and zero CURRENT_TIMESTAMP.",
+      "falsifier": "Append a table carrying INTEGER PRIMARY KEY AUTOINCREMENT to store.SCHEMA - the shape a plausible future 'build_log' table would take.",
+      "why_this_falsifier": "The realistic way this regresses is not someone editing an existing table, but someone adding a new one without thinking about it."
+    },
+    {
+      "id": "collapse_preserves_metadata",
+      "test": "tests/test_ingest.py::test_the_four_divergent_groups_kept_their_metadata",
+      "asserts": "The conflict-free union keeps the semantic-analysis confidence/reasoning on the 4 payload-divergent duplicate groups.",
+      "falsifier": "Replace collapse_edge_group with the strip-metadata rule - the exact alternative rejected when the collapse rule was chosen.",
+      "why_this_falsifier": "Turns a design decision into a permanent discriminator. The test must be able to tell the chosen rule from the runner-up, or it is not testing the decision at all."
+    },
+    {
+      "id": "dangling_edges_not_repaired",
+      "test": "tests/test_ingest.py::test_dangling_edges_were_not_silently_repaired",
+      "asserts": "No dropped edge reappears in the index under a fuzzy-matched endpoint.",
+      "falsifier": "Replace normalize.resolve_endpoint with a substring-matching resolver that maps a missing slug onto the first node whose source_ref contains it.",
+      "why_this_falsifier": "Three of the four dangling targets have plausible near-matches, so this is the repair someone would actually be tempted to write. It produces a valid-looking index that silently corrupts every traversal crossing the guessed edge."
+    },
+    {
+      "id": "isolated_nodes_kept",
+      "test": "tests/test_ingest.py::test_isolated_nodes_are_kept",
+      "asserts": "The 5 nodes with no edges remain in the index and stay searchable.",
+      "falsifier": "Filter nodes with no incident edge out of normalize_all.",
+      "why_this_falsifier": "Dropping them improves every connectivity statistic while silently shrinking the searchable corpus - an attractive change with an invisible cost."
+    },
+    {
+      "id": "content_hash_ignores_hash_seed",
+      "test": "tests/test_ingest.py::test_content_hash_is_stable_across_hash_seeds",
+      "asserts": "The manifest content_hash is identical under PYTHONHASHSEED 0, 1 and 12345.",
+      "falsifier": "Add node_types as list(set(...)) rather than sorted(set(...)) in manifest.build_content - 25 distinct values, so iteration order genuinely varies.",
+      "why_this_falsifier": "Set iteration order varies with the hash seed. This is the single most common way non-determinism enters a build, it is invisible in a single-process run, and this subprocess test is the only thing that catches it.",
+      "registry_finding": "The first falsifier here mutated embedding_models and was rejected as a no-op: this corpus has exactly 1 model and 1 dimension, so list(set) equals sorted(set). That is a fact about the corpus - no multi-element set currently reaches content_hash - so the hash-seed test guards a class of bug the present data cannot exhibit on its own."
+    }
+  ],
+  "not_falsified": [
+    {
+      "test": "tests/test_ingest.py::test_manifest_counts_match_database",
+      "reason": "build.py compares manifest counts against rows actually written and raises BuildError first. A falsifier would prove that guard fires, not this test."
+    },
+    {
+      "test": "tests/test_ingest.py::test_edge_reconciliation_balances",
+      "reason": "reconcile() is asserted on every build inside build.py, so the runtime guard triggers before the test can."
+    },
+    {
+      "test": "tests/test_ingest.py::test_two_builds_same_process_agree_via_the_contract",
+      "reason": "Enforced by the contract replay check itself; the assertion is a formality after the decorator has already compared results."
+    }
+  ]
+}
