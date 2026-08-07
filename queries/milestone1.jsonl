@@ -1,0 +1,23 @@
+{"id": "q01", "text": "prompt caching", "note": "common two-term query, 22 candidates"}
+{"id": "q02", "text": "tool use", "note": "broadest query in the set, 86 candidates"}
+{"id": "q03", "text": "extended thinking", "note": "16 candidates"}
+{"id": "q04", "text": "rag retrieval", "note": "10 candidates"}
+{"id": "q05", "text": "agent orchestration", "note": "20 candidates"}
+{"id": "q06", "text": "streaming", "note": "single term, only 3 candidates"}
+{"id": "q07", "text": "pdf vision", "note": "6 candidates"}
+{"id": "q08", "text": "citations", "note": "exactly 1 candidate - degenerate ranking"}
+{"id": "q09", "text": "batch processing", "note": "20 candidates"}
+{"id": "q10", "text": "embeddings semantic search", "note": "three terms, 15 candidates"}
+{"id": "q11", "text": "json mode structured output", "note": "four terms, 19 candidates"}
+{"id": "q12", "text": "summarization", "note": "2 candidates"}
+{"id": "q13", "text": "classification", "note": "4 candidates"}
+{"id": "q14", "text": "sub agents", "note": "7 candidates"}
+{"id": "q15", "text": "memory", "note": "5 candidates"}
+{"id": "e01", "text": "zzzqqq wwwvvv", "note": "edge: entirely out of vocabulary, must yield empty D"}
+{"id": "e02", "text": "", "note": "edge: empty query"}
+{"id": "e03", "text": "!!! ??? ---", "note": "edge: punctuation only, tokenises to nothing"}
+{"id": "e04", "text": "PROMPT CACHING", "note": "edge: case must not matter"}
+{"id": "e05", "text": "prompt caching prompt caching", "note": "edge: repeated terms, dedup in candidates"}
+{"id": "e06", "text": "prompt caching tool use streaming citations batch vision pdf embeddings memory classification summarization agent thinking", "note": "edge: 13 terms, longer than the prior engine's silent 10-term cap"}
+{"id": "e07", "text": "caching", "note": "edge: single term, substring of a compound"}
+{"id": "e08", "text": "real-time", "note": "edge: hyphenated compound, must split"}

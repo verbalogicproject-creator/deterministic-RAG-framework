@@ -142,6 +142,53 @@ def cmd_query(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_bench(args: argparse.Namespace) -> int:
+    from drf.bench import repro
+
+    indexes = [args.index] + (args.compare or [])
+    print(f"queries  {len(repro.load_queries())}   indexes {len(indexes)}")
+
+    if args.suite in ("repro", "all"):
+        summary = repro.run_matrix(indexes)
+        print("\n=== reproducibility matrix ===")
+        print(f"  axes  {summary['axes']}")
+        print(f"  cells {summary['cells']}   distinct digests "
+              f"{summary['distinct_digests']}")
+        print("  integers (the assertion surface):")
+        for key in ("mismatched_positions", "discordant_pairs",
+                    "length_delta", "symmetric_difference"):
+            print(f"    {key:24s} {summary[key]}")
+        print("  floats (for reading only):")
+        for key in ("exact_match_rate", "jaccard", "overlap_coefficient",
+                    "kendall_tau", "rbo"):
+            print(f"    {key:24s} {summary[key]:.6f}")
+
+    if args.suite in ("chaos", "all"):
+        chaos = repro.run_chaos_control(args.index)
+        print("\n=== chaos control (the prior engine's ranking) ===")
+        print("  Perfect scores above mean nothing unless this scores worse.")
+        print(f"    distinct_digests         {chaos['distinct_digests']}")
+        print(f"    mismatched_positions     {chaos['mismatched_positions']}")
+        print(f"    discordant_pairs         {chaos['discordant_pairs']}")
+        for key in ("exact_match_rate", "kendall_tau", "rbo", "jaccard",
+                    "overlap_coefficient"):
+            print(f"    {key:24s} {chaos[key]:.6f}")
+        print("  note: jaccard and overlap_coefficient report 1.0 here - set")
+        print("        metrics are blind to ordering non-determinism.")
+
+    if args.suite in ("sensitivity", "all"):
+        report = repro.run_sensitivity(args.index)
+        print("\n=== sensitivity: does each advertised knob move anything? ===")
+        print(f"  {'setting':22s} {'default':>9s} {'probe':>8s} "
+              f"{'reordered':>10s}  live")
+        for key, finding in sorted(report["settings"].items()):
+            print(f"  {key:22s} {str(finding['default']):>9s} "
+                  f"{str(finding['probe']):>8s} "
+                  f"{finding['queries_reordered']:>6d}/{report['queries']:<3d} "
+                  f"{'yes' if finding['live'] else 'NO'}")
+    return 0
+
+
 def cmd_inspect(args: argparse.Namespace) -> int:
     conn = connect(args.index)
     manifest = read_manifest(conn)
@@ -175,6 +222,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--explain", action="store_true",
                    help="print the justification for each action")
     p.set_defaults(func=cmd_query)
+
+    p = sub.add_parser("bench", help="reproducibility suite, control, sensitivity")
+    p.add_argument("suite", choices=("repro", "chaos", "sensitivity", "all"),
+                   default="all", nargs="?")
+    p.add_argument("--index", default=DEFAULT_OUT)
+    p.add_argument("--compare", nargs="*",
+                   help="additional independently built indexes")
+    p.set_defaults(func=cmd_bench)
 
     p = sub.add_parser("inspect", help="print an index manifest")
     p.add_argument("--index", default=DEFAULT_OUT)

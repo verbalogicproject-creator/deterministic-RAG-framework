@@ -262,7 +262,61 @@ Verified from the CLI too — authoritative prefix identical under `--neural off
 | `neural.encode_query_remote` | `RemoteHTTPProvider` cut from M1 by the plan. BGE is 1024-d, corpus vectors are 384-d MiniLM — incomparable spaces, so it needs the whole corpus re-embedded. M2. |
 | `store.load_manifest` | No second reader to keep honest yet. |
 
-## Next: M1.5 — `config/*`, `spec/config_schema.json`
+## M1.6 ✅ — `bench/*`, `queries/milestone1.jsonl`
+
+```
+drf/bench/metrics.py    ReproRAG metrics: integers to assert, floats to read
+drf/bench/repro.py      the matrix + the chaos control + sensitivity
+queries/milestone1.jsonl  23 queries: 15 corpus + 8 edge cases
+tools/drf bench repro|chaos|sensitivity|all
+tests/test_bench.py     13 tests
+```
+
+**185 tests green. 18 falsifiers.** Full matrix — **28 cells, 1 distinct digest**:
+
+```
+5 in-process x 3 subprocess x 3 PYTHONHASHSEED x 2 independent builds
+mismatched_positions 0   discordant_pairs 0   length_delta 0   symmetric_difference 0
+```
+
+### The chaos control — why the perfect scores mean anything
+
+Every metric scores 1.0 here, which is exactly why the numbers alone are *not* evidence: a harness that compared nothing would report the same. So `bench chaos` runs the identical measurement against **the defect this framework replaced** — rank by score alone, no tiebreak, unordered candidates (`python_apps_hybrid_query.py:304`). Not synthetic noise; the previous implementation.
+
+| metric | real | chaos | separates? |
+|---|---|---|---|
+| `distinct_digests` | **1** | **5** | ✅ |
+| `mismatched_positions` | **0** | **551** | ✅ |
+| `discordant_pairs` | **0** | **3,931** | ✅ |
+| exact_match_rate | 1.0000 | 0.6196 | ✅ |
+| kendall_tau | 1.0000 | **0.9761** | barely |
+| rbo | 1.0000 | **0.9942** | barely |
+| jaccard | 1.0000 | **1.0000** | ❌ blind |
+| overlap_coefficient | 1.0000 | **1.0000** | ❌ blind |
+
+**Two findings, both pinned as tests:**
+
+1. **Set metrics are blind to ordering non-determinism.** Jaccard reports 1.0000 for a pipeline returning five different orderings in five runs. Citing it as reproducibility evidence would be citing nothing.
+2. **Kendall's Tau 0.976 and RBO 0.994 describe a provably non-deterministic pipeline.** Rounded for a report they read as 0.98 and 0.99 — indistinguishable from correct. This is the *measured* justification for the project's "assert exact integers, never floats" rule, which until now was asserted on principle.
+
+### Gaps found and fixed while implementing
+
+| Gap | Fix |
+|---|---|
+| **My RBO was broken** — un-normalised RBO is bounded by `1 - p^k`, so it scored **0.716 for byte-identical lists** against 0.712 for the broken control. A metric that cannot separate perfect from broken is worse than absent. | Normalise by `1 - p^k` |
+| My own test then asserted `rbo == 1.0` — an **exact float assertion**, the very thing the project forbids. It failed in *both* directions (`1.0000000000000002` and `0.9999999999999998`) for identical inputs. | Assert the integer surface; `round(rbo, 9)` for the float |
+
+Sensitivity (23 queries): `ranking.b` reorders 13, `ranking.k1` 9, `graph.max_depth` 2, `graph.seed_count` 2. Lexical parameters dominate; graph parameters are live but weak, consistent with M1.5.
+
+## Next: M1.7 — `docs/render.py`, templates
+
+Four audiences (peer, agent, operator, plain) generated from `spec/`. `Template.substitute`, never `safe_substitute`, so an unresolved placeholder is a hard error and no number can enter docs without a producer. A hand-edit must **fail a test**.
+
+**Harvest from M1.6.** The docs now have real numbers to render, all producer-backed: 28 cells / 1 digest, the chaos comparison table, the sensitivity counts, `content_hash 90ab5db9…`. `docs/peer.md` must also carry the scope honesty already agreed: milestone 1 has **no relevance labels** and makes **no claim about retrieval quality**.
+
+**Audit before writing.** "A hand-edit fails a test" is the vacuity risk — if the test regenerates the file before comparing, it can never fail. The falsifier must edit a rendered file and require the test to notice.
+
+## M1.5 planning record
 
 **The centerpiece.** Subordination must hold against adversarial, crashing, hanging and flooding providers; the deterministic prefix sha must be identical in every case; `discordant_pairs == 0`.
 

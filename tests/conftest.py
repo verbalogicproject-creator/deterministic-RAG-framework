@@ -292,3 +292,23 @@ if _requested:
             f"known: {sorted(FALSIFIERS)}"
         )
     FALSIFIERS[_requested]()
+
+
+def _falsify_bench_detects_nondeterminism() -> None:
+    """Give the chaos control its tiebreak back, making it deterministic.
+
+    If the control cannot fail, the entire benchmark becomes decorative while
+    continuing to report 1.0 on every metric.
+    """
+    import drf.bench.repro as repro
+    from drf.retrieval import stage1
+
+    def deterministic_chaos(conn, index_hash, queries, seed):
+        return {
+            q["id"]: repro.rank_ids(conn, index_hash, q["text"]) for q in queries
+        }
+
+    repro.chaos_run = deterministic_chaos
+
+
+FALSIFIERS["bench_detects_nondeterminism"] = _falsify_bench_detects_nondeterminism

@@ -123,6 +123,13 @@
       "asserts": "Every setting flagged affects_ranking reorders results for at least one query, using its declared sensitivity_probe.",
       "falsifier": "Make stage1.rank ignore max_depth and use the default instead.",
       "why_this_falsifier": "A parameter that is documented, validated, hashed, and threaded through the call chain but never actually read is invisible to every other test in the suite - the config layer would be internally consistent and externally inert. This is also how the order-versus-state distinction was found: graph parameters reorder at most 1 query in 15, so a weak test passes on internal state alone."
+    },
+    {
+      "id": "bench_detects_nondeterminism",
+      "test": "tests/test_bench.py::test_chaos_control_is_detected",
+      "asserts": "The chaos control - the prior engine's ranking, score-only with no tiebreak over unordered candidates - produces more than one distinct digest.",
+      "falsifier": "Give chaos_run the injective tiebreak back, making it deterministic.",
+      "why_this_falsifier": "This is the anti-vacuity check for the entire benchmark. Every metric in the suite scores perfectly on this pipeline, so perfect scores are compatible with a harness that measures nothing. The control is the only thing that demonstrates the harness can report failure - and if the control itself became deterministic, the whole suite would silently become decorative while still reporting 1.0 everywhere."
     }
   ],
   "not_falsified": [
