@@ -1,0 +1,87 @@
+$banner
+
+# Deterministic RAG — operating notes for an agent
+
+Read this before changing anything. It states what is enforced, what will raise,
+and which assumptions are already measured so you do not re-derive them.
+
+**Spec hash** `$spec_sha` · **Index** `$content_hash`
+**Versions** parser `$parser_version`, ranker `$ranker_version`, id-schema `$id_schema_version`
+
+## Verified facts — do not re-measure, do not assume otherwise
+
+| fact | value |
+|---|---|
+| nodes / edges / embeddings | $node_count / $edge_count / $embedding_count |
+| terms / postings | $term_count / $posting_count |
+| avgdl | $avgdl |
+| BM25 k1 / b | $k1 / $b |
+| quantisation | 10^$quantum_exp, $quantisation_point |
+| queries with tied top set | $lengthnorm_ties |
+| reproducibility cells / digests | $repro_cells / $repro_digests |
+
+## What raises, and why
+
+- **`DeterminismViolation`** — an action declared deterministic returned two
+  different results for one inputs hash. The label is load-bearing; if you add a
+  parameter that changes output, add it to that action's `inputs` or this fires
+  spuriously.
+- **`AuthorityViolation`** — something outside `drf.retrieval.merge` called
+  `Advisory.unwrap()`. Do not widen the allowlist. That is how the guarantee
+  erodes: one locally-reasonable module at a time.
+- **`SubordinationViolation`** — a merge disturbed the authoritative prefix.
+  Unreachable by construction; if you see it, the architecture is broken and the
+  result must not be returned.
+- **`ConfigError`** — unknown or ill-typed setting. Typos are errors, never
+  silently ignored keys.
+- **`BuildError`** — manifest counts disagree with rows written, or edge
+  reconciliation did not balance.
+
+## Rules that are not negotiable
+
+1. **No number without a producer.** Counts come from `len()` or
+   `SELECT count(*)`, never a literal you remembered. Figures quoted in docs
+   live in `spec/benchmarks.json` beside the command that emits them.
+2. **Assert exact integers, never floats.** Measured reason: the chaos control
+   scores Kendall's Tau 0.9761 and RBO 0.9942 while being provably
+   non-deterministic. Rounded, those read as correct.
+3. **Prefer commutativity to pinned order.** If an operation is reproducible
+   only because something sorted first, look for a formulation where order
+   cannot matter. `fsum`, conflict-free union, and the injective sort key are
+   the same principle three times.
+4. **Docs are generated.** Edit `spec/`, run `drf docs build`. A hand edit fails
+   `tests/test_docs.py`.
+5. **Every checkpoint needs a falsifier.** Before trusting a new assertion,
+   register a mutation that makes it fail. If it survives, it is decoration.
+
+## The axes you must keep separate
+
+$action_count actions, $deterministic_count deterministic, $advisory_count
+advisory. Deterministic does **not** imply authoritative. Anchor-mode vector
+search runs no model and replays exactly, and it is still forbidden from
+influencing ranking.
+
+$action_table
+
+## Known-weak signals — do not overstate these
+
+$sensitivity_finding
+
+$sensitivity_table
+
+## Traps already hit, so you do not repeat them
+
+- A test asserting the *absence* of something is worthless without a control
+  proving the check can fire.
+- A falsifier must damage the thing under test **without narrowing what the test
+  looks at**. Patching shared machinery can remove the broken case from the
+  test's own iteration set.
+- Action registration is an import side effect, so registry tests must import
+  the modules themselves or they measure collection order.
+- Rank fusion (RRF) is the ecosystem's default advice and appears throughout the
+  recovered playbooks. It is rejected here: it grants authority to the advisory
+  side.
+
+## Scope
+
+$scope_no_labels

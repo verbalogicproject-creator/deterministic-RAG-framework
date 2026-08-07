@@ -312,3 +312,38 @@ def _falsify_bench_detects_nondeterminism() -> None:
 
 
 FALSIFIERS["bench_detects_nondeterminism"] = _falsify_bench_detects_nondeterminism
+
+
+def _falsify_docs_are_generated() -> None:
+    """Make a fresh render diverge from what is committed.
+
+    Changes the renderer rather than editing a file on disk: the effect on the
+    test is identical, and it leaves no dirty working tree behind.
+    """
+    import drf.docs.render as render
+
+    real = render.render_document
+    render.render_document = lambda audience, context: (
+        real(audience, context) + "\n<!-- injected by falsifier -->\n"
+    )
+    render.render_all = lambda context: {
+        audience: render.render_document(audience, context)
+        for audience in render.AUDIENCES
+    }
+
+
+def _falsify_docs_fail_on_missing_placeholder() -> None:
+    """safe_substitute: the forgiving call that leaves holes in the prose."""
+    import string
+
+    import drf.docs.render as render
+
+    class Forgiving(string.Template):
+        def substitute(self, *args, **kwargs):
+            return self.safe_substitute(*args, **kwargs)
+
+    render.Template = Forgiving
+
+
+FALSIFIERS["docs_are_generated"] = _falsify_docs_are_generated
+FALSIFIERS["docs_fail_on_missing_placeholder"] = _falsify_docs_fail_on_missing_placeholder

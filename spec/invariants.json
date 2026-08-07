@@ -130,6 +130,20 @@
       "asserts": "The chaos control - the prior engine's ranking, score-only with no tiebreak over unordered candidates - produces more than one distinct digest.",
       "falsifier": "Give chaos_run the injective tiebreak back, making it deterministic.",
       "why_this_falsifier": "This is the anti-vacuity check for the entire benchmark. Every metric in the suite scores perfectly on this pipeline, so perfect scores are compatible with a harness that measures nothing. The control is the only thing that demonstrates the harness can report failure - and if the control itself became deterministic, the whole suite would silently become decorative while still reporting 1.0 everywhere."
+    },
+    {
+      "id": "docs_are_generated",
+      "test": "tests/test_docs.py::test_committed_docs_match_a_fresh_render",
+      "asserts": "Each committed docs/*.md is byte-identical to a fresh render from spec/ plus a built index.",
+      "falsifier": "Append a line to whatever render_document produces, so a fresh render diverges from what is on disk.",
+      "why_this_falsifier": "Audited before the test was written. 'A hand edit fails a test' is vacuous if the test regenerates the files before comparing - it would compare a fresh render against itself and pass forever. The falsifier changes the renderer rather than editing a file, so it produces the same divergence without leaving the working tree dirty."
+    },
+    {
+      "id": "docs_fail_on_missing_placeholder",
+      "test": "tests/test_docs.py::test_a_missing_placeholder_raises_rather_than_rendering",
+      "asserts": "Rendering a template whose placeholder the context does not supply raises KeyError.",
+      "falsifier": "Use Template.safe_substitute instead of substitute.",
+      "why_this_falsifier": "safe_substitute is the more forgiving call and the one a well-meaning edit would reach for. It leaves an unresolved $placeholder in the prose, so the document reads as finished while carrying a hole where a number should be - which is precisely how the source project came to publish figures nothing produced."
     }
   ],
   "not_falsified": [

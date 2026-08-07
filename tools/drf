@@ -189,6 +189,19 @@ def cmd_bench(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_docs(args: argparse.Namespace) -> int:
+    from drf.docs.render import build_context, write_all
+
+    written = write_all(build_context(args.index))
+    print(f"rendered {len(written)} documents from spec/ + {args.index}")
+    for path in written:
+        print(f"  {path.relative_to(path.parent.parent)}  "
+              f"{len(path.read_text().splitlines())} lines")
+    print("\nThese files are generated. Edit spec/ and re-run; a hand edit "
+          "fails tests/test_docs.py.")
+    return 0
+
+
 def cmd_inspect(args: argparse.Namespace) -> int:
     conn = connect(args.index)
     manifest = read_manifest(conn)
@@ -230,6 +243,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--compare", nargs="*",
                    help="additional independently built indexes")
     p.set_defaults(func=cmd_bench)
+
+    p = sub.add_parser("docs", help="render the four audience documents")
+    p.add_argument("action", choices=("build",), default="build", nargs="?")
+    p.add_argument("--index", default=DEFAULT_OUT)
+    p.set_defaults(func=cmd_docs)
 
     p = sub.add_parser("inspect", help="print an index manifest")
     p.add_argument("--index", default=DEFAULT_OUT)

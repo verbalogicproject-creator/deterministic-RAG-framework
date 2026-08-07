@@ -1,0 +1,170 @@
+$banner
+
+# Deterministic RAG — technical reference
+
+A retrieval framework whose ranking path contains no model. A neural layer may
+be attached under a mechanically enforced guarantee that it can never change an
+authoritative result — only append below it.
+
+**Spec hash** `$spec_sha`
+**Index** `$content_hash`
+**Versions** parser `$parser_version`, ranker `$ranker_version`, id-schema `$id_schema_version`, manifest `$manifest_version`
+
+---
+
+## Scope, stated before the results
+
+$scope_no_labels
+
+$scope_toy
+
+Two further limits, recorded rather than discovered later:
+
+- $scope_scale
+- $scope_oov
+
+---
+
+## Two independent axes
+
+Determinism (same input, same output) and authority (may influence ranking) are
+orthogonal. Conflating them is the mistake the contract exists to prevent:
+anchor-mode search over frozen vectors is fully *deterministic* and strictly
+*advisory*, because reproducibility is not a licence to decide.
+
+$action_count actions are declared, $deterministic_count deterministic and
+$advisory_count advisory.
+
+$action_table
+
+Each label is enforced, not documented. Deterministic actions are replay-checked
+— calling one twice with the same inputs and getting different results raises.
+Probabilistic actions must declare a confidence; deterministic ones must not.
+Advisory results are boxed in `Advisory[T]`, whose `unwrap()` refuses any caller
+outside a one-module allowlist.
+
+## The three stages
+
+```
+Stage 1  AUTHORITATIVE  BM25 + graph traversal -> total order D
+Stage 2  ADVISORY       neural proposes candidates not in D
+Stage 3  MERGE          append-only; order(D) preserved exactly
+```
+
+The guarantee, checked at runtime on every query rather than only in CI:
+
+```
+merged[:len(D)] == D,  elementwise, in order, always
+```
+
+There is no weighted combination of lexical and neural signal. Any weight would
+grant authority; as a product it would grant veto. Rank fusion (RRF) is
+therefore rejected rather than merely unused.
+
+## Why the order is unambiguous
+
+```
+sort key = (-bm25_q, -matched_terms, best_depth, doc_len, node_id)
+```
+
+Every component is `int` or `str`; no float is ever compared. The final
+component is the content-addressed node id, which is injective over the
+candidate set, so the induced order is strict and total. `sorted()` therefore
+returns the same sequence for every input permutation, sort stability becomes
+irrelevant, and truncation to top-k cannot cascade.
+
+This is load-bearing rather than defensive: $lengthnorm_ties queries have exact
+BM25 ties in their top set, so without the tiebreak chain "the best result" is
+undefined for nearly half of ordinary queries.
+
+## Scoring
+
+```
+$bm25_formula
+idf(t) = $idf_formula
+```
+
+`k1 = $k1`, `b = $b`. Contributions are accumulated with `math.fsum` and
+quantised to `int` exactly once, $quantisation_point, with
+`QUANTUM_EXP = $quantum_exp`. Because the correctly-rounded sum of a multiset is
+unique, accumulation is commutative — the result does not depend on the order
+contributions are visited, so no upstream sort is load-bearing.
+
+## Measurements
+
+Every figure below is stored in `spec/benchmarks.json` beside the command that
+produces it.
+
+### Reproducibility — `$repro_producer`
+
+$repro_axes
+
+$repro_cells cells, $repro_digests distinct digest, $repro_discordant discordant pairs.
+
+### The control that makes those numbers mean something — `$chaos_producer`
+
+$chaos_why
+
+$chaos_what
+
+$chaos_table
+
+$chaos_findings
+
+### Length normalisation — `$lengthnorm_producer`
+
+The prior engine had no `b` and no `avgdl`. Measured against a correct
+implementation over strictly-ordered comparisons only:
+$lengthnorm_discordant_pct of $lengthnorm_pairs pairs discordant, direction
+longer/shorter/equal $lengthnorm_direction.
+
+**Correction on record.** $lengthnorm_correction
+
+### Graph expansion
+
+Bidirectional, on measurement rather than preference: mean depth-2 reach
+$graph_bidirectional_reach against $graph_forward_reach forward-only, and
+$graph_forward_dead nodes reach nothing forward-only against
+$graph_bidirectional_dead bidirectionally. No precomputed path index — BFS costs
+$graph_bfs_ms ms for 10 seeds at depth 2.
+
+### Sensitivity — `$sensitivity_producer`
+
+Over $sensitivity_queries queries, each setting probed with the value recorded
+in `spec/config_schema.json`:
+
+$sensitivity_table
+
+$sensitivity_finding
+
+## Falsifiers
+
+$invariant_count checkpoint invariants each carry a falsifier: a mutation under
+which the named test *must* fail. A test that survives its own falsifier cannot
+fail, and a test that cannot fail proves nothing. $exemption_count checkpoints
+are deliberately exempt, each with a recorded reason — they are guarded at
+runtime, so falsifying them would prove the guard rather than the test.
+
+$invariant_table
+
+## Configuration
+
+$setting_count settings, of which $ranking_setting_count can influence ranking.
+A configuration's content hash covers exactly those, so two configurations
+differing only in presentation are provably the same computation. Neural
+settings are excluded on the same grounds as display settings: they cannot
+influence the authoritative prefix.
+
+$setting_table
+
+## Field anchors
+
+- **SAT-Graph RAG** (arXiv 2510.06002) — the determinism boundary as a typed
+  action contract. Has no evaluation, and says so.
+- **ReproRAG** (arXiv 2509.18869) — metric suite and a measured hierarchy of
+  uncertainty; embedding-model choice dominates, while ANN index algorithms
+  scored a perfect 1.000, falsifying the common assumption.
+
+A fixed vector pipeline *is* reproducible. The defensible claim is narrower:
+reproducible conditional on a model choice that is itself arbitrary and drives
+much of the result variance.

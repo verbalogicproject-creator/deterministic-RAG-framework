@@ -1,0 +1,96 @@
+<!-- GENERATED FILE - DO NOT EDIT.
+     Produced by `drf docs build` from spec/*.json and a built index.
+     Hand edits are detected by tests/test_docs.py, which re-renders
+     and compares. Change the spec, then regenerate. -->
+
+# What this is, in plain English
+
+## The short version
+
+This is a search system for a knowledge base. Ask it a question, it gives you
+back a ranked list of relevant documents.
+
+The unusual part is a promise: **ask the same question twice and you get exactly
+the same answer.** Not a similar answer. The same one, in the same order, on any
+computer, on any day.
+
+That sounds obvious. It is not how most AI search systems work.
+
+## Why sameness is hard
+
+Most modern search uses an AI model to decide what is relevant. Models are
+useful, but they are also a moving part. Change the model, or its version, or
+sometimes just the hardware, and the answers shift. Usually a little. Sometimes
+enough to matter.
+
+If you cannot reproduce an answer, you cannot investigate one. "Why did it
+recommend that?" has no answer if the system would not recommend it again.
+
+## What this system does instead
+
+It splits the work in two.
+
+**The part that decides the ranking uses no AI at all.** It counts words,
+follows links between documents, and applies fixed arithmetic. Given the same
+question and the same documents, it cannot produce a different answer, because
+there is nothing in it that varies.
+
+**An AI layer can be added on top — but it is only allowed to make suggestions.**
+It can say "you might also like these." It cannot reorder, remove, or promote
+anything the first part decided. Its suggestions go underneath, always.
+
+The rule, checked every single time a question is asked:
+
+> The trusted results come first, in their exact order. Suggestions go below.
+
+So the worst an AI layer can do is contribute nothing useful. It cannot make the
+results worse. That is what makes adding one safe rather than a gamble.
+
+## How we know it actually works
+
+Anyone can claim their system is consistent. The awkward part is proving it,
+because a test that checks nothing also reports success.
+
+So the system is tested two ways:
+
+**It is run in every way that might break it** — repeatedly, in separate
+programs, with internal settings deliberately scrambled, and against two
+separately built copies of the same database. 28 combinations. All
+1 gave the same answer.
+
+**Then the same tests are run against a deliberately broken version** — the
+older system this one replaced. If the tests could not tell the two apart, the
+tests would be worthless. They tell them apart clearly: the broken version gave
+five different answers to the same question in five tries.
+
+There is a third habit worth mentioning. For every important check, we also
+build a sabotaged version of the system and confirm the check *fails*. A test
+that cannot fail is not protecting anything, and it is surprisingly easy to
+write one by accident. This has already caught several — including a few written
+while building this.
+
+## An honest limit
+
+This system does **not** claim to give better answers than anything else.
+
+Measuring answer quality needs a list of correct answers to compare against, and
+we do not have one yet. What is proven here is that the answers are consistent,
+explainable, and that the AI layer cannot quietly interfere. Whether they are
+*good* answers is a separate question, deliberately left for later.
+
+Saying so matters. The project this grew out of had documentation claiming
+"80% versus 60% accuracy" when no such comparison had ever been run. Avoiding
+that is much of the point.
+
+## Using it
+
+```
+./tools/drf query "prompt caching"
+```
+
+Add `--explain` and it shows its working: for each step, whether that step is
+guaranteed repeatable, and whether it was allowed to affect the ranking.
+
+Add `--neural stored` to switch the suggestion layer on. Compare the two outputs
+— the top section will be identical, character for character. That is the
+promise, and you can check it yourself in about ten seconds.

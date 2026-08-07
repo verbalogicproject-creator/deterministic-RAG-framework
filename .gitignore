@@ -6,9 +6,10 @@
 *.db-journal
 *.db-wal
 
-# Generated documentation. Rendered from spec/ by `drf docs build` (M1.7);
-# a hand-edit must fail a test, so the rendered output is not the source.
-/docs/*.md
+# Generated documentation is deliberately COMMITTED, not ignored. It is
+# rendered from spec/ by `drf docs build`, and tests/test_docs.py re-renders
+# and compares - so a hand edit fails the suite. An ignored file cannot be
+# checked, which would make the whole hand-edit guarantee unenforceable.
 
 __pycache__/
 *.py[cod]

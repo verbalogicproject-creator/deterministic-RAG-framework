@@ -1,0 +1,92 @@
+{
+  "spec_version": 1,
+  "description": "Measured results, each recorded with the command that produces it. Nothing in docs/ may state a number that does not appear here or is not computed from a built index at render time. A figure without a producer is the failure mode this project exists to remove.",
+  "corpus": {
+    "source": "claude-cookbook-kg.db",
+    "producer": "drf build --source <source> --out index.db",
+    "note": "266 nodes / 605 edges verified true against the source; the ingest drops 4 dangling edges and collapses 48 duplicate groups, so the index holds 553."
+  },
+  "reproducibility": {
+    "producer": "drf bench repro --index a.db --compare b.db",
+    "measured": "2026-08-08",
+    "axes": {
+      "in_process_repeats": 5,
+      "subprocess_repeats": 3,
+      "hash_seeds": ["0", "1", "12345"],
+      "independent_builds": 2
+    },
+    "cells": 28,
+    "distinct_digests": 1,
+    "mismatched_positions": 0,
+    "discordant_pairs": 0,
+    "length_delta": 0,
+    "symmetric_difference": 0
+  },
+  "chaos_control": {
+    "producer": "drf bench chaos --index a.db",
+    "measured": "2026-08-08",
+    "what_it_is": "The prior engine's ranking reproduced exactly: sort by score alone with no tiebreak, over candidates in arbitrary order. python_apps_hybrid_query.py:304 applied to the unordered LIMIT 100 at :342. Not synthetic noise - the implementation this framework replaced.",
+    "why_it_exists": "Every metric scores 1.0 on the real pipeline, so perfect scores are compatible with a harness that measures nothing. This control is the only evidence the harness can report failure.",
+    "runs": 5,
+    "rows": [
+      {"metric": "distinct_digests", "real": "1", "chaos": "5", "separates": "yes"},
+      {"metric": "mismatched_positions", "real": "0", "chaos": "551", "separates": "yes"},
+      {"metric": "discordant_pairs", "real": "0", "chaos": "3931", "separates": "yes"},
+      {"metric": "exact_match_rate", "real": "1.0000", "chaos": "0.6196", "separates": "yes"},
+      {"metric": "kendall_tau", "real": "1.0000", "chaos": "0.9761", "separates": "barely"},
+      {"metric": "rbo", "real": "1.0000", "chaos": "0.9942", "separates": "barely"},
+      {"metric": "jaccard", "real": "1.0000", "chaos": "1.0000", "separates": "NO"},
+      {"metric": "overlap_coefficient", "real": "1.0000", "chaos": "1.0000", "separates": "NO"}
+    ],
+    "findings": [
+      "Set-based metrics are blind to ordering non-determinism. Jaccard reports 1.0000 for a pipeline returning five different orderings in five runs.",
+      "Kendall's Tau of 0.9761 and RBO of 0.9942 describe a provably non-deterministic pipeline. Rounded for a report they read as 0.98 and 0.99. This is the measured reason assertions in this project use exact integers."
+    ]
+  },
+  "sensitivity": {
+    "producer": "drf bench sensitivity --index a.db",
+    "measured": "2026-08-08",
+    "queries": 23,
+    "rows": [
+      {"setting": "ranking.b", "default": "0.75", "probe": "0.375", "reordered": "13"},
+      {"setting": "ranking.k1", "default": "1.2", "probe": "0.6", "reordered": "9"},
+      {"setting": "graph.max_depth", "default": "2", "probe": "3", "reordered": "2"},
+      {"setting": "graph.seed_count", "default": "10", "probe": "20", "reordered": "2"}
+    ],
+    "finding": "Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees."
+  },
+  "length_normalisation": {
+    "producer": "python3 tools/measure_length_norm.py --index index.db",
+    "measured": "2026-08-08",
+    "what_it_tests": "The prior engine scored idf*(tf*k1)/(tf+k1) with k1=2.5 and no b or avgdl - BM25 with length normalisation switched off.",
+    "strictly_ordered_pairs": 352,
+    "discordant": 60,
+    "discordant_pct": "17.0%",
+    "tie_affected_pairs": 95,
+    "tie_affected_pct": "21.3%",
+    "queries_with_tied_top_set": "7/15",
+    "top_sets_disjoint": "3/15",
+    "mean_top_set_length_normalised": "15.9",
+    "mean_top_set_length_flat": "24.9",
+    "corpus_mean_length": "18.9",
+    "direction_longer_shorter_equal": "9/0/6",
+    "correction": "Earlier figures of 26.2% discordance and 'top-1 changed 9 of 15' were tiebreak-dependent and are withdrawn. 7 of 15 queries have exact ties in a top set; breaking them by lowest node id gives 9, by highest gives 4. Those numbers described BM25 plus an arbitrary convention. All figures here are defined only over strictly-ordered comparisons. The directional claim survived unchanged."
+  },
+  "graph": {
+    "producer": "measured during M1.3, recorded in STATE.md",
+    "measured": "2026-08-07",
+    "bfs_depth2_10_seeds_ms": "0.149",
+    "full_depth4_all_pairs_ms": "5",
+    "forward_only_mean_reach": "7.2",
+    "bidirectional_mean_reach": "23.3",
+    "forward_only_dead_nodes": "81/266",
+    "bidirectional_dead_nodes": "5/266",
+    "finding": "Following outgoing edges only would leave 76 nodes with zero graph signal because of how a relation happened to be phrased. Directed cycles are present, so a visited set is mandatory."
+  },
+  "scope_limits": {
+    "no_relevance_labels": "Milestone 1 carries no relevance judgements and makes NO claim about retrieval quality. It proves reproducibility and subordination. Recall, nDCG and MRR require labels and belong to milestone 2. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.",
+    "toy_corpus": "266 nodes is small. Every determinism metric is perfect here, which demonstrates determinism, not scalability.",
+    "posting_union_does_not_scale": "Candidate generation has no truncation and degrades at scale. FTS5 with a mandatory ORDER BY rank plus deterministic pagination is the milestone 3 path.",
+    "oov_yields_nothing": "An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one."
+  }
+}

@@ -1,0 +1,230 @@
+<!-- GENERATED FILE - DO NOT EDIT.
+     Produced by `drf docs build` from spec/*.json and a built index.
+     Hand edits are detected by tests/test_docs.py, which re-renders
+     and compares. Change the spec, then regenerate. -->
+
+# Deterministic RAG — technical reference
+
+A retrieval framework whose ranking path contains no model. A neural layer may
+be attached under a mechanically enforced guarantee that it can never change an
+authoritative result — only append below it.
+
+**Spec hash** `77302e076be0b25173227381b0b7426e35180abd11ddd8301ca325e273e96b97`
+**Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
+**Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`, manifest `1`
+
+---
+
+## Scope, stated before the results
+
+Milestone 1 carries no relevance judgements and makes NO claim about retrieval quality. It proves reproducibility and subordination. Recall, nDCG and MRR require labels and belong to milestone 2. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.
+
+266 nodes is small. Every determinism metric is perfect here, which demonstrates determinism, not scalability.
+
+Two further limits, recorded rather than discovered later:
+
+- Candidate generation has no truncation and degrades at scale. FTS5 with a mandatory ORDER BY rank plus deterministic pagination is the milestone 3 path.
+- An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one.
+
+---
+
+## Two independent axes
+
+Determinism (same input, same output) and authority (may influence ranking) are
+orthogonal. Conflating them is the mistake the contract exists to prevent:
+anchor-mode search over frozen vectors is fully *deterministic* and strictly
+*advisory*, because reproducibility is not a licence to decide.
+
+10 actions are declared, 10 deterministic and
+2 advisory.
+
+| action | determinism | authority | what it does |
+|---|---|---|---|
+| graph.expand | deterministic | authoritative | Bounded breadth-first expansion from the top-ranked seeds. |
+| ingest.build_index | deterministic | authoritative | Build the content-addressed index from a source knowledge graph. |
+| lexical.bm25_score | deterministic | authoritative | Okapi BM25 with k1, b and document-length normalisation. |
+| lexical.candidates | deterministic | authoritative | Union of postings over the sorted query terms. |
+| merge.append_advisory | deterministic | authoritative | Append advisory proposals below the authoritative order. |
+| neural.encode_query_remote | deterministic | advisory | Encode query text via a remote embedding server. |
+| neural.propose_from_anchors | deterministic | advisory | Propose nodes similar to the top-ranked members of D, using frozen vectors. |
+| stage1.rank | deterministic | authoritative | Produce the authoritative total order D. |
+| store.load_manifest | deterministic | authoritative | Read and validate the index manifest. |
+| tokenize.terms | deterministic | authoritative | Normalise text to an ordered term list. Shared by index and query paths. |
+
+Each label is enforced, not documented. Deterministic actions are replay-checked
+— calling one twice with the same inputs and getting different results raises.
+Probabilistic actions must declare a confidence; deterministic ones must not.
+Advisory results are boxed in `Advisory[T]`, whose `unwrap()` refuses any caller
+outside a one-module allowlist.
+
+## The three stages
+
+```
+Stage 1  AUTHORITATIVE  BM25 + graph traversal -> total order D
+Stage 2  ADVISORY       neural proposes candidates not in D
+Stage 3  MERGE          append-only; order(D) preserved exactly
+```
+
+The guarantee, checked at runtime on every query rather than only in CI:
+
+```
+merged[:len(D)] == D,  elementwise, in order, always
+```
+
+There is no weighted combination of lexical and neural signal. Any weight would
+grant authority; as a product it would grant veto. Rank fusion (RRF) is
+therefore rejected rather than merely unused.
+
+## Why the order is unambiguous
+
+```
+sort key = (-bm25_q, -matched_terms, best_depth, doc_len, node_id)
+```
+
+Every component is `int` or `str`; no float is ever compared. The final
+component is the content-addressed node id, which is injective over the
+candidate set, so the induced order is strict and total. `sorted()` therefore
+returns the same sequence for every input permutation, sort stability becomes
+irrelevant, and truncation to top-k cannot cascade.
+
+This is load-bearing rather than defensive: 7/15 queries have exact
+BM25 ties in their top set, so without the tiebreak chain "the best result" is
+undefined for nearly half of ordinary queries.
+
+## Scoring
+
+```
+idf(t) * tf(t,d) * (k1 + 1) / (tf(t,d) + k1 * (1 - b + b * dl(d) / avgdl))
+idf(t) = ln((N - df(t) + 0.5) / (df(t) + 0.5) + 1)
+```
+
+`k1 = 1.2`, `b = 0.75`. Contributions are accumulated with `math.fsum` and
+quantised to `int` exactly once, after_summation, with
+`QUANTUM_EXP = 9`. Because the correctly-rounded sum of a multiset is
+unique, accumulation is commutative — the result does not depend on the order
+contributions are visited, so no upstream sort is load-bearing.
+
+## Measurements
+
+Every figure below is stored in `spec/benchmarks.json` beside the command that
+produces it.
+
+### Reproducibility — `drf bench repro --index a.db --compare b.db`
+
+{"in_process_repeats": 5, "subprocess_repeats": 3, "hash_seeds": ["0", "1", "12345"], "independent_builds": 2}
+
+28 cells, 1 distinct digest, 0 discordant pairs.
+
+### The control that makes those numbers mean something — `drf bench chaos --index a.db`
+
+Every metric scores 1.0 on the real pipeline, so perfect scores are compatible with a harness that measures nothing. This control is the only evidence the harness can report failure.
+
+The prior engine's ranking reproduced exactly: sort by score alone with no tiebreak, over candidates in arbitrary order. python_apps_hybrid_query.py:304 applied to the unordered LIMIT 100 at :342. Not synthetic noise - the implementation this framework replaced.
+
+| metric | real | chaos | separates? |
+|---|---|---|---|
+| distinct_digests | 1 | 5 | yes |
+| mismatched_positions | 0 | 551 | yes |
+| discordant_pairs | 0 | 3931 | yes |
+| exact_match_rate | 1.0000 | 0.6196 | yes |
+| kendall_tau | 1.0000 | 0.9761 | barely |
+| rbo | 1.0000 | 0.9942 | barely |
+| jaccard | 1.0000 | 1.0000 | NO |
+| overlap_coefficient | 1.0000 | 1.0000 | NO |
+
+- Set-based metrics are blind to ordering non-determinism. Jaccard reports 1.0000 for a pipeline returning five different orderings in five runs.
+- Kendall's Tau of 0.9761 and RBO of 0.9942 describe a provably non-deterministic pipeline. Rounded for a report they read as 0.98 and 0.99. This is the measured reason assertions in this project use exact integers.
+
+### Length normalisation — `python3 tools/measure_length_norm.py --index index.db`
+
+The prior engine had no `b` and no `avgdl`. Measured against a correct
+implementation over strictly-ordered comparisons only:
+17.0% of 352 pairs discordant, direction
+longer/shorter/equal 9/0/6.
+
+**Correction on record.** Earlier figures of 26.2% discordance and 'top-1 changed 9 of 15' were tiebreak-dependent and are withdrawn. 7 of 15 queries have exact ties in a top set; breaking them by lowest node id gives 9, by highest gives 4. Those numbers described BM25 plus an arbitrary convention. All figures here are defined only over strictly-ordered comparisons. The directional claim survived unchanged.
+
+### Graph expansion
+
+Bidirectional, on measurement rather than preference: mean depth-2 reach
+23.3 against 7.2 forward-only, and
+81/266 nodes reach nothing forward-only against
+5/266 bidirectionally. No precomputed path index — BFS costs
+0.149 ms for 10 seeds at depth 2.
+
+### Sensitivity — `drf bench sensitivity --index a.db`
+
+Over 23 queries, each setting probed with the value recorded
+in `spec/config_schema.json`:
+
+| setting | default | probe | queries reordered |
+|---|---|---|---|
+| ranking.b | 0.75 | 0.375 | 13 |
+| ranking.k1 | 1.2 | 0.6 | 9 |
+| graph.max_depth | 2 | 3 | 2 |
+| graph.seed_count | 10 | 20 | 2 |
+
+Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees.
+
+## Falsifiers
+
+20 checkpoint invariants each carry a falsifier: a mutation under
+which the named test *must* fail. A test that survives its own falsifier cannot
+fail, and a test that cannot fail proves nothing. 3 checkpoints
+are deliberately exempt, each with a recorded reason — they are guarded at
+runtime, so falsifying them would prove the guard rather than the test.
+
+| invariant | asserts | falsifier |
+|---|---|---|
+| ddl_forbidden_constructs | The built index DDL contains zero AUTOINCREMENT and zero CURRENT_TIMESTAMP. | Append a table carrying INTEGER PRIMARY KEY AUTOINCREMENT to store.SCHEMA - the shape a plausible future 'build_log' table would take. |
+| collapse_preserves_metadata | The conflict-free union keeps the semantic-analysis confidence/reasoning on the 4 payload-divergent duplicate groups. | Replace collapse_edge_group with the strip-metadata rule - the exact alternative rejected when the collapse rule was chosen. |
+| dangling_edges_not_repaired | No dropped edge reappears in the index under a fuzzy-matched endpoint. | Replace normalize.resolve_endpoint with a substring-matching resolver that maps a missing slug onto the first node whose source_ref contains it. |
+| isolated_nodes_kept | The 5 nodes with no edges remain in the index and stay searchable. | Filter nodes with no incident edge out of normalize_all. |
+| content_hash_ignores_hash_seed | The manifest content_hash is identical under PYTHONHASHSEED 0, 1 and 12345. | Add node_types as list(set(...)) rather than sorted(set(...)) in manifest.build_content - 25 distinct values, so iteration order genuinely varies. |
+| bm25_length_normalisation | A long document repeating the query term (tf=2, dl=32) must not outrank a short exact match (tf=1, dl=1). | Force b=0.0 in bm25.score_documents. |
+| candidates_not_truncated | Query terms beyond the tenth still contribute candidates. | Truncate the term list to its first ten before looking up postings. |
+| scores_are_int | Every value that can reach a sort key is int, never float. | Replace quantize with a float-preserving multiplication. |
+| one_tokenizer | The query path and the index path produce identical terms. | Make the query path drop tokens of three characters or fewer, a filter indexing does not apply. |
+| strict_total_order | Every candidate in D has a distinct sort key, so the order is strict and total. | Drop the trailing node_id component from stage1.sort_key. |
+| bidirectional_expansion | Graph expansion follows edges in both directions. | Restrict store.neighbours to outgoing edges only. |
+| merge_is_append_only | merged[:len(D)] equals D elementwise, for every provider including hostile ones. | Promote one advisory result into second place AND neuter merge's runtime postcondition. |
+| advisory_allowlist | Advisory.unwrap() raises AuthorityViolation outside drf.retrieval.merge. | Add the test module to contract.ADVISORY_CONSUMERS. |
+| config_hash_ignores_display | Changing a presentation setting does not change a configuration's content_hash. | Fold every setting into the hash rather than only the ranking ones. |
+| config_hash_covers_ranking | Every setting flagged affects_ranking is folded into content_hash. | Drop one ranking key from Config.ranking_settings(). |
+| config_rejects_unknown_keys | An unknown setting name raises rather than being stored. | Make validate_one accept unknown keys silently. |
+| ranking_params_are_live | Every setting flagged affects_ranking reorders results for at least one query, using its declared sensitivity_probe. | Make stage1.rank ignore max_depth and use the default instead. |
+| bench_detects_nondeterminism | The chaos control - the prior engine's ranking, score-only with no tiebreak over unordered candidates - produces more than one distinct digest. | Give chaos_run the injective tiebreak back, making it deterministic. |
+| docs_are_generated | Each committed docs/*.md is byte-identical to a fresh render from spec/ plus a built index. | Append a line to whatever render_document produces, so a fresh render diverges from what is on disk. |
+| docs_fail_on_missing_placeholder | Rendering a template whose placeholder the context does not supply raises KeyError. | Use Template.safe_substitute instead of substitute. |
+
+## Configuration
+
+9 settings, of which 4 can influence ranking.
+A configuration's content hash covers exactly those, so two configurations
+differing only in presentation are provably the same computation. Neural
+settings are excluded on the same grounds as display settings: they cannot
+influence the authoritative prefix.
+
+| setting | default | affects ranking | what it is |
+|---|---|---|---|
+| display.explain | False | no | Print the justification trace. |
+| display.format | text | no | Output rendering. |
+| display.k | 10 | no | How many results to print. Presentation only. |
+| graph.max_depth | 2 | yes | Hop limit for bidirectional expansion. |
+| graph.seed_count | 10 | yes | How many top lexical hits seed graph expansion. |
+| neural.limit | 10 | no | Maximum advisory proposals appended below D. |
+| neural.provider | off | no | Advisory provider. Cannot affect the authoritative prefix - see merge.py. |
+| ranking.b | 0.75 | yes | BM25 document-length normalisation. The load-bearing parameter; the prior engine omitted it entirely. |
+| ranking.k1 | 1.2 | yes | BM25 term-frequency saturation. Weak on this corpus - tf == 1 for 82.7% of (document, term) pairs. |
+
+## Field anchors
+
+- **SAT-Graph RAG** (arXiv 2510.06002) — the determinism boundary as a typed
+  action contract. Has no evaluation, and says so.
+- **ReproRAG** (arXiv 2509.18869) — metric suite and a measured hierarchy of
+  uncertainty; embedding-model choice dominates, while ANN index algorithms
+  scored a perfect 1.000, falsifying the common assumption.
+
+A fixed vector pipeline *is* reproducible. The defensible claim is narrower:
+reproducible conditional on a model choice that is itself arbitrary and drives
+much of the result variance.

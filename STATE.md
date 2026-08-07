@@ -308,7 +308,54 @@ Every metric scores 1.0 here, which is exactly why the numbers alone are *not* e
 
 Sensitivity (23 queries): `ranking.b` reorders 13, `ranking.k1` 9, `graph.max_depth` 2, `graph.seed_count` 2. Lexical parameters dominate; graph parameters are live but weak, consistent with M1.5.
 
-## Next: M1.7 — `docs/render.py`, templates
+## M1.7 ✅ — `docs/render.py`, templates
+
+```
+drf/docs/render.py                  context from spec/ + a built index
+drf/docs/templates/{peer,agent,operator,plain}.md.tmpl
+spec/benchmarks.json                every measurement beside its producer command
+docs/{peer,agent,operator,plain}.md GENERATED, and committed
+tools/drf docs build --index index.db
+tests/test_docs.py                  11 tests
+```
+
+**200 tests green. 20 falsifiers.**
+
+`Template.substitute`, never `safe_substitute` — a placeholder the context lacks raises `KeyError` rather than leaving `$whatever` sitting in the prose looking like it belongs.
+
+### The hand-edit guarantee, demonstrated not asserted
+
+```
+$ printf 'This system is 40%% more accurate than alternatives.\n' >> docs/plain.md
+$ pytest tests/test_docs.py::test_committed_docs_match_a_fresh_render
+E  + This system is 40% more accurate than alternatives.
+FAILED
+```
+
+That is the exact failure mode the source project shipped (`80% vs 60% accuracy`, no evaluation anywhere). It now cannot survive a test run.
+
+**`.gitignore` reversed for `docs/*.md`.** They were ignored as "generated output". But an ignored file cannot be checked, which would leave the guarantee unenforceable. They are committed, and the test re-renders and compares.
+
+### The audit paid off again
+
+"A hand edit fails a test" is vacuous **if the test regenerates before comparing** — it would compare a fresh render against itself and pass forever. `test_committed_docs_match_a_fresh_render` therefore only reads. The falsifier mutates the *renderer* rather than editing a file, producing the same divergence without leaving a dirty working tree.
+
+It also fired for real during development: adding entries to `spec/invariants.json` changed `spec_sha` and `invariant_count`, so the committed docs no longer matched. Drift detected within seconds of being introduced.
+
+### Four audiences
+
+| doc | for | contains |
+|---|---|---|
+| `peer.md` | technical reader | architecture, the two axes, all measurements with producers, field anchors, scope limits first |
+| `agent.md` | a future Claude session | verified facts not to re-measure, what raises and why, non-negotiable rules, **traps already hit** |
+| `operator.md` | you | every command, what each proves, how to check the prefix guarantee yourself |
+| `plain.md` | non-technical reader | no jargon (asserted: no "BM25", "idf", "injective", "postings", "sha256") |
+
+## Next: M1.8 — freeze
+
+Tag; record `spec_sha`, manifest hash and bench digest in `docs/peer.md`. Most of this already renders — `spec_sha` and `content_hash` are in the context. The remaining work is a `drf freeze` that captures the triple and a test that the recorded values match a live rebuild.
+
+## M1.6 planning record
 
 Four audiences (peer, agent, operator, plain) generated from `spec/`. `Template.substitute`, never `safe_substitute`, so an unresolved placeholder is a hard error and no number can enter docs without a producer. A hand-edit must **fail a test**.
 

@@ -1,0 +1,90 @@
+$banner
+
+# Deterministic RAG — running it
+
+**Index** `$content_hash`
+$node_count nodes · $edge_count edges · $term_count terms · $posting_count postings · $embedding_count vectors
+
+Python 3.12+, standard library only. Nothing to install.
+
+## Build an index
+
+```bash
+./tools/drf build --source /path/to/claude-cookbook-kg.db --out index.db
+```
+
+Prints the content hash and what was dropped. Two builds from the same source
+produce the same hash, on any machine, at any time.
+
+## Check an index
+
+```bash
+./tools/drf verify --index index.db
+./tools/drf verify --index index.db --compare other.db
+```
+
+Exits non-zero if the manifest was altered, if counts disagree with the
+database, or if the two indexes differ. `inspect` prints the full manifest.
+
+## Query
+
+```bash
+./tools/drf query "prompt caching"
+./tools/drf query "prompt caching" --neural stored --explain
+./tools/drf query "prompt caching" -k 20 --seeds 10 --depth 2
+```
+
+Results are labelled `authoritative` or `advisory`. **The authoritative block is
+identical whether the neural layer is on or off** — verify it yourself by
+diffing the two outputs. Advisory results are only ever appended below.
+
+`--explain` prints, for each step, whether it was deterministic or
+probabilistic and whether it was allowed to influence the ranking.
+
+## Benchmarks
+
+```bash
+./tools/drf bench repro --index a.db --compare b.db
+./tools/drf bench chaos --index a.db
+./tools/drf bench sensitivity --index a.db
+```
+
+`repro` runs $repro_cells cells across four axes — repeats, subprocesses, hash
+seeds, independent builds — and should report **1** distinct digest and **0**
+discordant pairs.
+
+`chaos` is the one worth understanding. Perfect scores prove nothing on their
+own, because a benchmark that measures nothing also scores perfectly. `chaos`
+runs the same measurement against the older, broken ranking so you can see the
+suite reporting failure:
+
+$chaos_table
+
+`sensitivity` checks that every setting advertised as affecting ranking actually
+changes results:
+
+$sensitivity_table
+
+## Settings
+
+$setting_count settings, $ranking_setting_count of which affect ranking. Only
+those are part of a configuration's identity — changing how many results you
+display does not make it a different computation.
+
+$setting_table
+
+## What it will not do
+
+$scope_no_labels
+
+- $scope_toy
+- $scope_oov
+
+## Regenerating documentation
+
+```bash
+./tools/drf docs build --index index.db
+```
+
+These files are generated from `spec/`. Editing them directly fails the test
+suite — change the spec and regenerate.
