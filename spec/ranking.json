@@ -1,0 +1,46 @@
+{
+  "spec_version": 1,
+  "description": "Ranking parameters and the exact order of arithmetic operations. Mirrored by drf/retrieval/bm25.py and drf/fixed.py; tests/test_retrieval.py asserts code and spec agree, so a drift between them is a failing test rather than a silent behaviour change.",
+
+  "bm25": {
+    "formula": "idf(t) * tf(t,d) * (k1 + 1) / (tf(t,d) + k1 * (1 - b + b * dl(d) / avgdl))",
+    "idf": "ln((N - df(t) + 0.5) / (df(t) + 0.5) + 1)",
+    "k1": 1.2,
+    "b": 0.75,
+    "notes": {
+      "k1": "Controls term-frequency saturation. Measured on this corpus: tf == 1 for 82.7% of (document, term) pairs, so k1 has very little to act on - moving it from 1.2 to 2.5 shifts only 1 percentage point of ranking discordance. It is a safe tunable here.",
+      "b": "Controls document-length normalisation, and is the load-bearing parameter. The prior engine omitted it entirely (no b, no avgdl). Measured against b=0.75 over 15 corpus-vocabulary queries, using tiebreak-free metrics only: 17.0% of strictly-ordered pairs at depth 10 are discordant (60 of 352); top sets are disjoint for 3 of 15 queries; the mean top-set length rises from 15.9 to 24.9 tokens against a corpus mean of 18.9; and the directional claim holds monotonically at 9 longer / 0 shorter / 6 equal. Producer: tools/measure_length_norm.py",
+      "b_measurement_correction": "Earlier figures of 26.2%/27.2% discordance and 'top-1 changed 9 of 15' were tiebreak-dependent and are withdrawn. 7 of 15 queries have exact ties in a top set; breaking them by lowest node id yields 9 changed, by highest node id yields 4. Those numbers described BM25 plus an arbitrary convention rather than BM25, which is the same defect this project catalogued in the prior engine. The metrics above are defined only over strictly-ordered comparisons, so no convention can move them. The load-bearing directional claim survived the correction unchanged.",
+      "idf_form": "The +1 inside the logarithm keeps idf non-negative, so a term appearing in more than half the corpus cannot subtract from a score. Without it a common term makes a matching document rank below a non-matching one, which is indefensible to a user."
+    }
+  },
+
+  "quantisation": {
+    "exponent": 9,
+    "operation": "floor(x * 10^9 + 0.5)",
+    "point": "after_summation",
+    "rationale": "Contributions are accumulated with math.fsum and the total is quantised exactly once. The alternative - quantising each term contribution and summing integers - is equally deterministic and equally commutative, so determinism does not decide between them. Accuracy does: per-term quantisation admits up to half a quantum of error per term, accumulating with query length, whereas a single quantisation bounds the total error at half a quantum regardless of how many terms matched. tests/test_retrieval.py asserts the two orders of operation produce different results on a constructed case, so this choice is falsifiable rather than decorative.",
+    "invariant": "No float may reach a comparison. Every value participating in a sort key is int."
+  },
+
+  "commutativity": {
+    "claim": "Scoring is independent of the order term contributions are accumulated in.",
+    "reason": "math.fsum returns the correctly-rounded sum, and the correctly-rounded sum of a multiset is unique - so the result does not depend on visitation order. This is a stronger property than pinning an order by sorting first, because there is no ordering left for a future refactor to disturb.",
+    "consequence": "spec/actions.json previously described this as 'summed in sorted-term order'. That phrasing implied the sort was load-bearing. It is not, and the guarantee has been corrected."
+  },
+
+  "candidates": {
+    "definition": "union of postings(t) over the distinct query terms",
+    "guarantee": "Exactly the support of BM25 - a document with no query term scores exactly zero, so nothing with a nonzero score can be outside the union.",
+    "no_truncation": "There is no LIMIT and no ORDER BY on candidate generation. The prior engine carried three independent silent caps: an unordered LIMIT 100 (python_apps_hybrid_query.py:347), a query truncated to its first 10 terms (:339), and a [:15] boundary whose ties cascaded into global reordering (:307). Truncation may only happen after a strict total order exists."
+  },
+
+  "document": {
+    "fields": ["name", "description"],
+    "excluded": {
+      "source_ref": "71% of its tokens already appear in name+description; 84 of 266 documents gain zero new tokens. Duplicates raise tf and silently double-weight title terms.",
+      "type": "29 of 30 tokens already in the corpus vocabulary, and 101 documents share use_case, so IDF crushes it. Belongs in a structured filter, not the text."
+    },
+    "binds": "PARSER_VERSION"
+  }
+}

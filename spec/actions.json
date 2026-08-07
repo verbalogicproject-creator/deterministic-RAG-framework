@@ -47,7 +47,8 @@
       "determinism": "deterministic",
       "authority": "authoritative",
       "summary": "Okapi BM25 with k1, b and document-length normalisation.",
-      "guarantee": "Contributions summed with math.fsum in sorted-term order, then quantised to int. Bit-identical across platforms."
+      "guarantee": "Contributions summed with math.fsum, then quantised to int exactly once. Because the correctly-rounded sum of a multiset is unique, accumulation is commutative: the result is independent of the order contributions are visited, so no upstream sort is load-bearing. Bit-identical across platforms. See spec/ranking.json.",
+    "corrected": "This guarantee previously read 'summed in sorted-term order', which implied the sort was load-bearing. It is not. Corrected at M1.2 under the commutativity rule in STATE.md."
     },
     {
       "name": "graph.expand",

@@ -108,12 +108,62 @@ def _falsify_content_hash_ignores_hash_seed() -> None:
     manifest.build_content = unsorted_build_content
 
 
+def _falsify_bm25_length_normalisation() -> None:
+    """Disable length normalisation - literally the prior engine's defect."""
+    import drf.retrieval.bm25 as bm25
+
+    real = bm25.score_documents
+
+    def flat(**kwargs):
+        kwargs["b"] = 0.0
+        return real(**kwargs)
+
+    bm25.score_documents = flat
+
+
+def _falsify_candidates_not_truncated() -> None:
+    """Cap the query at ten terms, as python_apps_hybrid_query.py:339 did."""
+    import drf.retrieval.lexical as lexical
+
+    real = lexical.postings_for_terms
+    lexical.postings_for_terms = lambda conn, terms: real(conn, terms[:10])
+
+
+def _falsify_scores_are_int() -> None:
+    """Skip quantisation so floats reach the sort key."""
+    import drf.retrieval.bm25 as bm25
+    from drf.fixed import QUANTUM
+
+    bm25.quantize = lambda x: x * QUANTUM
+
+
+def _falsify_one_tokenizer() -> None:
+    """Let the query path filter short tokens while indexing does not.
+
+    The classic index/query divergence: a rule applied on one side only. Terms
+    present in a document become unfindable, and no ranking test can see it.
+    """
+    import drf.retrieval.tokenize as tokenize_module
+
+    real = tokenize_module.terms
+
+    def divergent(*, text):
+        value, justification = real(text=text)
+        return type(value)([v for v in value if len(v) > 3]), justification
+
+    tokenize_module.terms = divergent
+
+
 FALSIFIERS = {
     "ddl_forbidden_constructs": _falsify_ddl_forbidden_constructs,
     "collapse_preserves_metadata": _falsify_collapse_preserves_metadata,
     "dangling_edges_not_repaired": _falsify_dangling_edges_not_repaired,
     "isolated_nodes_kept": _falsify_isolated_nodes_kept,
     "content_hash_ignores_hash_seed": _falsify_content_hash_ignores_hash_seed,
+    "bm25_length_normalisation": _falsify_bm25_length_normalisation,
+    "candidates_not_truncated": _falsify_candidates_not_truncated,
+    "scores_are_int": _falsify_scores_are_int,
+    "one_tokenizer": _falsify_one_tokenizer,
 }
 
 

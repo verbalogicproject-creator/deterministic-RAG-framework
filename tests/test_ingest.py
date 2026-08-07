@@ -48,6 +48,7 @@ from drf.ingest.normalize import (  # noqa: E402
 from drf.store import (  # noqa: E402
     EdgeRecord,
     FORBIDDEN_DDL,
+    TABLES,
     connect,
     ddl_text,
     iter_edges,
@@ -124,10 +125,21 @@ def test_source_does_contain_what_we_forbid(source_conn):
 
 @requires_source
 def test_every_table_is_without_rowid(built):
-    """No hidden insertion-order column anywhere in the index."""
+    """No hidden insertion-order column anywhere in the index.
+
+    The expected table count is derived from `store.TABLES`, which is itself
+    parsed from `SCHEMA`, rather than written as a literal. An earlier version
+    asserted `== 4` and broke the moment M1.2 added the lexical tables - it
+    would have been equally happy to pass while a new table silently escaped
+    the WITHOUT ROWID requirement, since a literal cannot notice what it does
+    not mention.
+    """
     ddl = ddl_text(built["conn"]).upper()
-    creates = [s for s in ddl.split("CREATE TABLE")[1:]]
-    assert len(creates) == 4, "expected 4 tables"
+    creates = ddl.split("CREATE TABLE")[1:]
+    assert len(creates) == len(TABLES), (
+        f"sqlite_master has {len(creates)} tables, SCHEMA declares "
+        f"{len(TABLES)}: {list(TABLES)}"
+    )
     for statement in creates:
         assert "WITHOUT ROWID" in statement
 
@@ -517,15 +529,15 @@ def test_spec_actions_not_yet_implemented_are_declared_not_forgotten():
     }
     pending = spec_names - implemented
     assert pending == {
-        "store.load_manifest",
-        "tokenize.terms",
-        "lexical.candidates",
-        "lexical.bm25_score",
+        # M1.3
         "graph.expand",
         "stage1.rank",
+        # M1.4
         "neural.propose_from_anchors",
         "neural.encode_query_remote",
         "merge.append_advisory",
+        # deferred: the manifest is currently read directly by store.read_manifest
+        "store.load_manifest",
     }, f"milestone drift: pending set changed to {sorted(pending)}"
 
 

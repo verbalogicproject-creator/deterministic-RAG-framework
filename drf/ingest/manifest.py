@@ -96,11 +96,43 @@ def build_content(normalized: Normalized, corpus: str) -> dict:
     return content
 
 
+def lexical_content(*, doc_lens: dict, postings: list, dfs: dict) -> dict:
+    """The lexical index's contribution to `content_hash`.
+
+    The postings digest is included even though postings are *derived* from
+    nodes, which are already hashed. The redundancy is the point: it makes the
+    tokenizer part of the index identity, so an accidental change to
+    tokenisation alters `content_hash` even if nobody remembered to bump
+    `PARSER_VERSION`. A version constant records intent; a digest records fact.
+
+    `total_length` is stored as an exact integer rather than `avgdl` as a
+    float. `avgdl` is derived at use time as `total/n`, so the float that
+    scoring sees is produced by one division of two exact integers on every
+    run, instead of being round-tripped through a stored decimal.
+    """
+    return {
+        "counts": {
+            "documents": len(doc_lens),
+            "terms": len(dfs),
+            "postings": len(postings),
+        },
+        "total_length": sum(doc_lens.values()),
+        "digests": {
+            "doc_stats": sha256_value(sorted(doc_lens.items())),
+            "terms": sha256_value(sorted(dfs.items())),
+            "postings": sha256_value(
+                [[p.term, p.node_id, p.tf] for p in sorted(postings)]
+            ),
+        },
+    }
+
+
 def build_manifest(
     normalized: Normalized,
     *,
     corpus: str,
     source_fingerprint: dict,
+    lexical: dict | None = None,
     provenance: dict | None = None,
 ) -> dict:
     """Assemble the full manifest with its `content_hash`.
@@ -111,6 +143,8 @@ def build_manifest(
     """
     content = build_content(normalized, corpus)
     content["source"] = source_fingerprint
+    if lexical is not None:
+        content["lexical"] = lexical_content(**lexical)
     return {
         "content": content,
         "content_hash": sha256_value(content),

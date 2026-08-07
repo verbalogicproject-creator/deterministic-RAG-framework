@@ -39,6 +39,34 @@
       "falsifier": "Add node_types as list(set(...)) rather than sorted(set(...)) in manifest.build_content - 25 distinct values, so iteration order genuinely varies.",
       "why_this_falsifier": "Set iteration order varies with the hash seed. This is the single most common way non-determinism enters a build, it is invisible in a single-process run, and this subprocess test is the only thing that catches it.",
       "registry_finding": "The first falsifier here mutated embedding_models and was rejected as a no-op: this corpus has exactly 1 model and 1 dimension, so list(set) equals sorted(set). That is a fact about the corpus - no multi-element set currently reaches content_hash - so the hash-seed test guards a class of bug the present data cannot exhibit on its own."
+    },
+    {
+      "id": "bm25_length_normalisation",
+      "test": "tests/test_retrieval.py::test_padded_document_does_not_outrank_short_exact_match",
+      "asserts": "A long document repeating the query term (tf=2, dl=32) must not outrank a short exact match (tf=1, dl=1).",
+      "falsifier": "Force b=0.0 in bm25.score_documents.",
+      "why_this_falsifier": "This is not an invented mutation - it is exactly what the prior engine did, which had no b and no avgdl. The falsifier reproduces a defect that shipped, so the test is proven to detect the real historical failure rather than a hypothetical one."
+    },
+    {
+      "id": "candidates_not_truncated",
+      "test": "tests/test_retrieval.py::test_no_query_length_truncation",
+      "asserts": "Query terms beyond the tenth still contribute candidates.",
+      "falsifier": "Truncate the term list to its first ten before looking up postings.",
+      "why_this_falsifier": "Reproduces python_apps_hybrid_query.py:339, a silent cap that no output ever mentioned. Candidate generation is the one place where losing a document is unrecoverable - nothing downstream can rank what was never retrieved."
+    },
+    {
+      "id": "scores_are_int",
+      "test": "tests/test_retrieval.py::test_all_scores_are_int",
+      "asserts": "Every value that can reach a sort key is int, never float.",
+      "falsifier": "Replace quantize with a float-preserving multiplication.",
+      "why_this_falsifier": "The fixed-point discipline is structural: floats cannot cause ranking instability if they cannot reach a comparison. A test asserting int-ness is the only thing standing between that design and a plausible-looking refactor that keeps floats."
+    },
+    {
+      "id": "one_tokenizer",
+      "test": "tests/test_retrieval.py::test_index_and_query_paths_share_one_tokenizer",
+      "asserts": "The query path and the index path produce identical terms.",
+      "falsifier": "Make the query path drop tokens of three characters or fewer, a filter indexing does not apply.",
+      "why_this_falsifier": "The classic index/query divergence - a normalisation rule applied on one side only. Terms present in a document silently become unfindable, and no ranking or scoring test can observe it, because every score computed is correct for the terms that survived."
     }
   ],
   "not_falsified": [

@@ -159,11 +159,55 @@ Proven at this checkpoint:
 
 **Third truncation found:** `python_apps_hybrid_query.py:339` is `' OR '.join(keywords[:10])` — queries silently truncated to their first 10 terms, on top of the unordered `LIMIT 100` (`:347`) and the `[:15]` boundary (`:307`). M1.2's `candidates = ⋃ postings(t)` must carry no such cap; `len(candidates) == len(posting_union)` is exactly that guard.
 
-## Next: M1.2.1–M1.2.4 — `tokenize.py`, `bm25.py`, `lexical.py`
+## M1.2 ✅ — `tokenize.py`, `bm25.py`, `lexical.py`
+
+```
+drf/retrieval/tokenize.py   one tokenizer, ASCII by construction
+drf/retrieval/bm25.py       Okapi BM25, pure arithmetic, no contract import
+drf/retrieval/lexical.py    candidates + scoring actions, index build tables
+spec/ranking.json           k1, b, quantisation point, document definition
+tests/test_retrieval.py     24 tests
+```
+
+Index now carries `doc_stats`, `terms`, `postings` (7 tables, all `WITHOUT ROWID`):
+
+```
+content_hash  90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a
+266 docs   1,303 terms   4,185 postings   total_len 5,019   avgdl 18.8684
+```
+
+`PARSER_VERSION` **1.0.0 → 1.1.0** — the build now indexes text, so the hash necessarily moved from `27679065…`. The old value in earlier commits is correct *for an index without postings*.
+
+**98 tests green.** Proven: exact-integer match against an independently derived 5-doc reference; padded long document loses to a short exact match **with a control proving `b=0` reverses it**; `len(candidates) == len(posting_union)`; all scores `int`; scoring invariant across all 6 permutations of posting order; the two quantisation points genuinely differ (so the spec's choice is falsifiable); index and query paths share one tokenizer; `df` agrees with the postings it summarises; OOV query returns empty rather than raising.
+
+**9 falsifiers now registered**, 4 of them new and 2 reproducing defects that actually shipped in the old engine (`b=0`, and the ten-term query cap from `hybrid_query.py:339`).
+
+### Gaps found and fixed while implementing
+
+| Gap | Fix |
+|---|---|
+| Replay-log key had no index identity — two indexes, same query → spurious `DeterminismViolation` | `index_hash` is a declared input of `lexical.candidates` / `lexical.bm25_score`; `k1`/`b` too |
+| `test_every_table_is_without_rowid` asserted a literal `4` | Derives from `store.TABLES`, itself parsed from `SCHEMA` |
+| `spec/actions.json` said scores are "summed in sorted-term order" | Corrected — the sort is a convenience, not load-bearing |
+| A silent tokenizer hazard: `\w` depends on the interpreter's Unicode DB version | `[a-z0-9]+`; measured cost is 2 symbol chars (`×`, `→`) in 5/266 docs |
+| `avgdl` stored as a float would not round-trip | Store `total_len` and `n` as ints; derive `avgdl` at use time |
+| A term with postings but no `df` row would score silently | Raises `ValueError` — an inconsistent index must not produce a plausible score |
+
+## Next: M1.3 — `graph.py`, `stage1.py`
+
+Run the milestone gate before writing code.
+
+**Harvest from M1.2.** The injective sort key is now known to be *load-bearing, not defensive*: **7 of 15** ordinary queries have exact ties in their top set, and the reference corpus reproduces one exactly (`d2` and `d5` both score `333105558` on `alpha`). Without a total order, "the best result" is undefined for nearly half of real queries — and we proved the cost of not noticing, by publishing tiebreak-dependent figures ourselves. `tests/test_retrieval.py::test_exact_ties_are_pervasive_on_the_real_corpus` already pins this.
+
+**Audit — the planned checkpoint is probably vacuous.** `len(set(sort_keys)) == len(D)` is guaranteed *by construction* once the key ends in a content-addressed PK, so it may be unable to fail, exactly like the shuffle test M1.2 retired. **Register a falsifier before trusting it:** drop the `node_id` component from the key and require the test to fail. If it survives, the assertion is decoration.
+
+**Carry forward:** the FTS5 trigger correction (see above) applies the moment `graph.py` or M3 touches FTS5 — the plan's "lift verbatim" instruction is wrong.
+
+---
+
+### M1.2 planning record (kept for provenance)
 
 **Document definition (decided, binds `PARSER_VERSION`): `name + description`.** `source_ref` excluded — 71% of its tokens already present, 84/266 docs gain zero, and duplicates inflate `tf` on title terms. `type` excluded — 29/30 tokens already in vocabulary and 101 docs share `use_case`, so IDF crushes it; type belongs in a structured filter.
-
-Unchanged from the original plan: BM25 must match a hand-computed 5-doc reference; `len(candidates) == len(posting_union)`; all scores are `int`. Four changes follow.
 
 ### Corpus facts, measured (`tools/measure_length_norm.py`)
 
@@ -173,17 +217,22 @@ N=266  avgdl=18.9 tokens  min=4  median=17  max=61   (name + description)
 5 isolated nodes -> score on text alone
 ```
 
-The old engine's missing `b`/`avgdl` was **not** a harmless omission — measured against `b=0.75` over 15 corpus-vocabulary queries:
+The old engine's missing `b`/`avgdl` was **not** a harmless omission — measured against `b=0.75` over 15 corpus-vocabulary queries, **tiebreak-free**:
 
 | | |
 |---|---|
-| discordant pairs @10 | **109/416 = 26.2%** |
-| queries whose top-1 changed | **9/15** |
-| mean top-1 doc length, `b=0.75` | 15.9 tokens |
-| mean top-1 doc length, `b=0.0` | 28.1 tokens |
-| `b=0` top-1 longer / shorter / same | **9 / 0 / 6** |
+| strictly-ordered pairs @10 discordant | **60/352 = 17.0%** |
+| pairs tie-affected (order undefined without a convention) | **95 = 21.3%** |
+| queries with a tie in a top set | **7/15** |
+| top sets disjoint (unambiguously changed) | **3/15** |
+| mean top-set length, `b=0.75` → `b=0.0` | **15.9 → 24.9** tokens (corpus 18.9) |
+| direction: longer / shorter / equal | **9 / 0 / 6** |
 
-The direction claim holds *monotonically* — zero counterexamples. This replaces the previously-asserted "long padded entities win by default" with a producer-backed figure.
+The direction claim holds *monotonically* — zero counterexamples.
+
+> **⚠️ Correction — figures withdrawn.** An earlier revision of this file reported **26.2% / 27.2% discordance** and **"top-1 changed 9/15"**. Both were **tiebreak-dependent**: 7 of 15 queries have exact ties in a top set, and breaking them by *lowest* node id gives 9 while *highest* gives 4. Those numbers described *BM25 plus an arbitrary convention*, not BM25 — the same defect catalogued in the old engine ("no tiebreak on any sort"), reproduced in our own measurement. The discordance figure was inflated because tied pairs were counted as ordered. All metrics above are now defined only over strictly-ordered comparisons. **The load-bearing directional claim survived unchanged.**
+
+That 7/15 tie rate is the empirical case for M1.3: without a total order, "the best result" is **undefined** for nearly half of ordinary queries.
 
 ### 1. Replace "shuffling posting order changes nothing" with a control test
 

@@ -21,11 +21,13 @@ import sqlite3
 import sys
 
 from ..contract import ActionOutput, action
+from ..retrieval.lexical import build_index_tables
 from ..store import (
     connect,
     create_schema,
     insert_edges,
     insert_embeddings,
+    insert_lexical,
     insert_nodes,
     write_manifest,
 )
@@ -80,10 +82,16 @@ def build_index(*, source_path: str, out_path: str, corpus: str = CORPUS) -> Act
             "A row was double-counted or lost; the index is not trustworthy."
         )
 
+    # The lexical index is derived from the normalised nodes, so it is built
+    # here rather than in a separate pass: one tokenisation feeds doc_len, tf
+    # and df together, and they cannot disagree with each other.
+    doc_lens, postings, dfs = build_index_tables(normalized.nodes)
+
     manifest = build_manifest(
         normalized,
         corpus=corpus,
         source_fingerprint=fingerprint,
+        lexical={"doc_lens": doc_lens, "postings": postings, "dfs": dfs},
         provenance={
             "source_path": os.path.abspath(source_path),
             "out_path": os.path.abspath(out_path),
@@ -100,6 +108,9 @@ def build_index(*, source_path: str, out_path: str, corpus: str = CORPUS) -> Act
         written_nodes = insert_nodes(conn, normalized.nodes)
         written_edges = insert_edges(conn, normalized.edges)
         written_embeddings = insert_embeddings(conn, normalized.embeddings)
+        written_lexical = insert_lexical(
+            conn, doc_lens=doc_lens, postings=postings, dfs=dfs
+        )
         write_manifest(conn, manifest)
         conn.commit()
     finally:
@@ -109,10 +120,14 @@ def build_index(*, source_path: str, out_path: str, corpus: str = CORPUS) -> Act
     # before the build is allowed to succeed. This is the one place where a
     # silent partial write would otherwise go unnoticed.
     counts = manifest["content"]["counts"]
+    lexical_counts = manifest["content"]["lexical"]["counts"]
     for label, claimed, written in (
         ("nodes", counts["nodes"], written_nodes),
         ("edges", counts["edges"], written_edges),
         ("embeddings", counts["embeddings"], written_embeddings),
+        ("doc_stats", lexical_counts["documents"], written_lexical["doc_stats"]),
+        ("terms", lexical_counts["terms"], written_lexical["terms"]),
+        ("postings", lexical_counts["postings"], written_lexical["postings"]),
     ):
         if claimed != written:
             raise BuildError(

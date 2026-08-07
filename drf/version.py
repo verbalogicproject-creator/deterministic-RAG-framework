@@ -6,7 +6,13 @@ relevant constant whenever its subsystem's output could change.
 """
 
 # Bump when the ingest/normalisation pipeline changes the text it indexes.
-PARSER_VERSION = "1.0.0"
+#
+# 1.1.0 (M1.2) - the build now tokenises documents and writes an inverted
+#   index. The indexed document is `name + description`; `type` and
+#   `source_ref` are deliberately excluded, see retrieval/tokenize.py.
+#   This necessarily changes every index's content_hash, which is correct:
+#   the index contains strictly more than it did at 1.0.0.
+PARSER_VERSION = "1.1.0"
 
 # Bump when scoring, the sort key, or quantisation changes.
 RANKER_VERSION = "1.0.0"
