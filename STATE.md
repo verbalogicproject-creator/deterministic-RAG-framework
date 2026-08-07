@@ -127,9 +127,51 @@ Proven at this checkpoint:
 
 ## Next: M1.2 — `tokenize.py`, `bm25.py`, `lexical.py`
 
-Must prove: BM25 matches a hand-computed 5-doc reference **including length normalisation — a padded long doc must not outrank a short exact match** (the old engine had no `b`, no `avgdl`); `len(candidates) == len(posting_union)`; all scores are `int`; shuffling posting order changes nothing.
+**Refined after M1.1.** Unchanged from the original plan: BM25 must match a hand-computed 5-doc reference; `len(candidates) == len(posting_union)`; all scores are `int`. Four changes follow.
 
-Note for M1.2: the corpus has **0 empty descriptions**, so `avgdl` is well-defined, but 5 isolated nodes will score on text alone.
+### Corpus facts, measured (`tools/measure_length_norm.py`)
+
+```
+N=266  avgdl=18.9 tokens  min=4  median=17  max=61   (name + description)
+0 empty descriptions -> avgdl well-defined
+5 isolated nodes -> score on text alone
+```
+
+The old engine's missing `b`/`avgdl` was **not** a harmless omission — measured against `b=0.75` over 15 corpus-vocabulary queries:
+
+| | |
+|---|---|
+| discordant pairs @10 | **109/416 = 26.2%** |
+| queries whose top-1 changed | **9/15** |
+| mean top-1 doc length, `b=0.75` | 15.9 tokens |
+| mean top-1 doc length, `b=0.0` | 28.1 tokens |
+| `b=0` top-1 longer / shorter / same | **9 / 0 / 6** |
+
+The direction claim holds *monotonically* — zero counterexamples. This replaces the previously-asserted "long padded entities win by default" with a producer-backed figure.
+
+### 1. Replace "shuffling posting order changes nothing" with a control test
+
+Under the commutativity rule, that test now **passes by construction**: `fsum` returns the unique correctly-rounded total, and integer addition is commutative, so no permutation can change a score. A test that cannot fail proves nothing. Keep the shuffle as a cheap regression guard, but the load-bearing test is a **control** — a naive `sum()`-with-early-rounding formulation must be shown to *differ*, exactly as `test_source_does_contain_what_we_forbid` proves the DDL grep can fire.
+
+### 2. Pin *where* quantisation happens — currently unspecified
+
+`quantize(fsum(contributions))` and `sum(quantize(c) for c in contributions)` are both deterministic and both commutative, but they **give different answers** at the last quantum. The original plan said "fsum over *sorted* contributions"; sorting is now known to be unnecessary (fsum's result is order-free), so that phrasing should not survive into the code. Record the chosen order of operations in `spec/ranking.json` and assert the alternative differs, or the spec is unfalsifiable.
+
+### 3. Decide the document definition — it is consequential and unrecorded
+
+M1.1 stores `type`, `name`, `description`, `source_ref`, `metadata`. Which of these *is* the indexed document is undecided, and it moves `avgdl` by 31%:
+
+| Document | avgdl |
+|---|---|
+| `name + description` | 18.9 |
+| `+ type` | 20.8 |
+| `+ source_ref` (slug, underscores split) | 24.8 |
+
+`source_ref` slugs (`claude_technique_prompt_caching`) are high-signal but largely duplicate `name` tokens, inflating `tf`. Whatever is chosen binds to `PARSER_VERSION`.
+
+### 4. Test length normalisation on the real corpus, not only the 5-doc reference
+
+The synthetic reference validates the *formula*; it cannot show `b` matters *here*. The 26.2% / 9-of-15 / 0-counterexample figures above are a regression test with teeth. `tools/measure_length_norm.py` reimplements BM25 independently rather than importing `drf.retrieval.bm25`, so it stays a genuine cross-check once the real implementation lands — a measurement that calls the code under test cannot contradict it.
 
 Do **not** assert byte-identical `.db` files — SQLite's header change counter makes that fragile. Assert manifest `content_hash` + `drf export --canonical` equality.
 
