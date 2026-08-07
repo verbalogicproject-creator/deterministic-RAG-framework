@@ -1,0 +1,117 @@
+{
+  "spec_version": 1,
+  "description": "Every setting the framework accepts, its type, and - the field that matters - whether it can influence ranking. Settings with affects_ranking true are the only ones folded into a configuration's content_hash, so two configurations that differ solely in presentation are provably the same computation.",
+  "why_affects_ranking_is_not_hand_maintained": "A flag that has to be kept in sync by hand drifts. Each ranking setting names the action parameter it binds to, and tests/test_config.py asserts that the set of settings flagged affects_ranking equals the set of config-bound parameters actually declared in the `inputs` of an authoritative @action. The schema cannot claim a setting matters unless the code declares it as an input, and it cannot omit one that is.",
+  "why_neural_settings_do_not_affect_ranking": "They genuinely do not. Provider choice and proposal limit change only the advisory tail, which merge appends below D and can never reorder. Recording that here is not a convenience - it is the configuration layer restating the architecture's central guarantee, and tests/test_config.py checks it against real query output rather than trusting the flag.",
+  "settings": {
+    "ranking.k1": {
+      "type": "number",
+      "default": 1.2,
+      "minimum": 0.0,
+      "maximum": 10.0,
+      "affects_ranking": true,
+      "action_input": "k1",
+      "summary": "BM25 term-frequency saturation. Weak on this corpus - tf == 1 for 82.7% of (document, term) pairs.",
+      "sensitivity_probe": 0.6
+    },
+    "ranking.b": {
+      "type": "number",
+      "default": 0.75,
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "affects_ranking": true,
+      "action_input": "b",
+      "summary": "BM25 document-length normalisation. The load-bearing parameter; the prior engine omitted it entirely.",
+      "sensitivity_probe": 0.375
+    },
+    "graph.seed_count": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 0,
+      "maximum": 1000,
+      "affects_ranking": true,
+      "action_input": "seed_count",
+      "summary": "How many top lexical hits seed graph expansion.",
+      "sensitivity_probe": 20
+    },
+    "graph.max_depth": {
+      "type": "integer",
+      "default": 2,
+      "minimum": 0,
+      "maximum": 10,
+      "affects_ranking": true,
+      "action_input": "max_depth",
+      "summary": "Hop limit for bidirectional expansion.",
+      "sensitivity_probe": 3
+    },
+    "neural.provider": {
+      "type": "string",
+      "default": "off",
+      "enum": [
+        "off",
+        "stored"
+      ],
+      "affects_ranking": false,
+      "summary": "Advisory provider. Cannot affect the authoritative prefix - see merge.py."
+    },
+    "neural.limit": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 0,
+      "maximum": 100,
+      "affects_ranking": false,
+      "summary": "Maximum advisory proposals appended below D."
+    },
+    "display.k": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 1000,
+      "affects_ranking": false,
+      "summary": "How many results to print. Presentation only."
+    },
+    "display.explain": {
+      "type": "boolean",
+      "default": false,
+      "affects_ranking": false,
+      "summary": "Print the justification trace."
+    },
+    "display.format": {
+      "type": "string",
+      "default": "text",
+      "enum": [
+        "text",
+        "json"
+      ],
+      "affects_ranking": false,
+      "summary": "Output rendering."
+    }
+  },
+  "sensitivity": {
+    "rule": "Every setting flagged affects_ranking must carry a sensitivity_probe: a value proven to change the ORDER of results for at least one query. tests/test_config.py runs it. A knob advertised as affecting ranking that moves nothing is the same defect as a metric with no producer.",
+    "measured_2026_08_08": {
+      "note": "Two different questions, and they give different answers. 'Order changed' counts queries whose ranked node_id sequence differs - what a user sees. 'State changed' counts queries where any Ranked field differs, including best_depth, which is internal. The distinction was found when a sensitivity test written against order disagreed with an M1.3 test written against state.",
+      "ranking.k1 1.2->0.6": {
+        "order": "6/15",
+        "state": "15/15"
+      },
+      "ranking.b 0.75->0.375": {
+        "order": "8/15",
+        "state": "15/15"
+      },
+      "graph.seed_count 10->11": {
+        "order": "0/15",
+        "state": "7/15"
+      },
+      "graph.seed_count 10->20": {
+        "order": "1/15",
+        "state": "7/15"
+      },
+      "graph.max_depth 2->3": {
+        "order": "1/15",
+        "state": "6/15"
+      }
+    },
+    "finding": "Lexical parameters genuinely move results; graph parameters barely do. seed_count 10->11 changes the order for ZERO queries - it alters best_depth for 7 of 15 but never enough to reorder. The build plan's checkpoint 'seed_count 10->11 changes output for at least one query' is satisfied only under the loose reading of output as internal state. Recorded rather than glossed: on a 266-node corpus where BM25 already discriminates well, graph expansion contributes little to ordering. It resolves exact BM25 ties, which is real but narrow. Whether that changes at M3 scale is an open question, not an assumption."
+  }
+}

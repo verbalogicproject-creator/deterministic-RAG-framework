@@ -242,12 +242,19 @@ def test_negative_depth_is_rejected(index=None):
 # --------------------------------------------------------------------------
 
 @requires_source
-def test_seed_count_change_alters_output_for_at_least_one_query(index):
-    """`seed_count` 10 -> 11 must be observable, or it is not a real knob.
+def test_seed_count_change_alters_internal_state_for_at_least_one_query(index):
+    """`seed_count` 10 -> 11 must be observable in the ranked state.
 
-    The plan requires this explicitly. A parameter advertised as affecting
-    ranking but which changes nothing is the same defect as a metric with no
-    producer.
+    **Scope, corrected at M1.5.** This compares full `Ranked` tuples, so it
+    passes on a change to `best_depth` alone. Measured: 10 -> 11 alters
+    `best_depth` for 7 of 15 queries and reorders **zero** of them. The
+    stronger claim - that the knob changes what a user sees - is tested in
+    `test_config.py::test_every_ranking_setting_changes_real_query_output`,
+    which compares node_id order and needs a 10 -> 20 probe to hold.
+
+    The two tests disagreeing is what surfaced the distinction. Renamed so the
+    name states which question it answers; the original read as though it
+    proved visible sensitivity, which it does not.
     """
     changed = [
         text for text in QUERIES

@@ -217,6 +217,52 @@ def _falsify_advisory_allowlist() -> None:
     )
 
 
+def _falsify_config_hash_ignores_display() -> None:
+    """Hash every setting - the obvious, more-thorough-looking implementation."""
+    import drf.config.manager as manager
+
+    manager.Config.content_hash = lambda self: manager.sha256_value(
+        {"schema_version": 1, "ranking": self.as_dict()}
+    )
+
+
+def _falsify_config_hash_covers_ranking() -> None:
+    """Silently omit one ranking key from the *hashed* set only.
+
+    `ranking_keys()` is deliberately left intact. A first attempt patched it
+    too, which removed `ranking.b` from the list the test iterates as well as
+    from the hash - so the test never checked the key that had been broken and
+    passed happily. The falsifier must damage the thing under test without
+    also narrowing what the test looks at.
+    """
+    import drf.config.manager as manager
+
+    manager.Config.ranking_settings = lambda self: {
+        k: self._settings[k] for k in manager.ranking_keys() if k != "ranking.b"
+    }
+
+
+def _falsify_config_rejects_unknown_keys() -> None:
+    """Accept anything, as the recovered project's config_manager.set() did."""
+    import drf.config.manager as manager
+
+    manager.validate_one = lambda key, value: None
+    manager.Config.set = lambda self, key, value: self._settings.__setitem__(key, value)
+
+
+def _falsify_ranking_params_are_live() -> None:
+    """Thread max_depth through the call chain but never read it."""
+    import drf.retrieval.stage1 as stage1
+
+    real = stage1.rank
+
+    def deaf_rank(**kwargs):
+        kwargs["max_depth"] = stage1.DEFAULT_MAX_DEPTH
+        return real(**kwargs)
+
+    stage1.rank = deaf_rank
+
+
 FALSIFIERS = {
     "ddl_forbidden_constructs": _falsify_ddl_forbidden_constructs,
     "collapse_preserves_metadata": _falsify_collapse_preserves_metadata,
@@ -231,6 +277,10 @@ FALSIFIERS = {
     "bidirectional_expansion": _falsify_bidirectional_expansion,
     "merge_is_append_only": _falsify_merge_is_append_only,
     "advisory_allowlist": _falsify_advisory_allowlist,
+    "config_hash_ignores_display": _falsify_config_hash_ignores_display,
+    "config_hash_covers_ranking": _falsify_config_hash_covers_ranking,
+    "config_rejects_unknown_keys": _falsify_config_rejects_unknown_keys,
+    "ranking_params_are_live": _falsify_ranking_params_are_live,
 }
 
 

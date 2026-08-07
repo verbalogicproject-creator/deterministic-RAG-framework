@@ -95,6 +95,34 @@
       "asserts": "Advisory.unwrap() raises AuthorityViolation outside drf.retrieval.merge.",
       "falsifier": "Add the test module to contract.ADVISORY_CONSUMERS.",
       "why_this_falsifier": "The allowlist is the mechanism that makes advisory data physically unable to reach authoritative arithmetic. Widening it is exactly how the guarantee would erode in practice - one module at a time, each addition locally reasonable."
+    },
+    {
+      "id": "config_hash_ignores_display",
+      "test": "tests/test_config.py::test_display_keys_do_not_change_the_content_hash",
+      "asserts": "Changing a presentation setting does not change a configuration's content_hash.",
+      "falsifier": "Fold every setting into the hash rather than only the ranking ones.",
+      "why_this_falsifier": "Hashing the whole settings dict is the obvious implementation and looks more thorough, which is exactly why it needs pinning. It would make two identical computations look different whenever someone changed the page size, destroying the hash's usefulness as an identity for 'which ranking produced this'."
+    },
+    {
+      "id": "config_hash_covers_ranking",
+      "test": "tests/test_config.py::test_every_ranking_key_changes_the_content_hash",
+      "asserts": "Every setting flagged affects_ranking is folded into content_hash.",
+      "falsifier": "Drop one ranking key from Config.ranking_settings().",
+      "why_this_falsifier": "The dangerous direction. An omitted ranking key makes two genuinely different rankings hash identically, so a benchmark or cache would treat them as the same computation - a silent wrong answer rather than a loud failure."
+    },
+    {
+      "id": "config_rejects_unknown_keys",
+      "test": "tests/test_config.py::test_unknown_setting_is_rejected",
+      "asserts": "An unknown setting name raises rather than being stored.",
+      "falsifier": "Make validate_one accept unknown keys silently.",
+      "why_this_falsifier": "Reproduces the recovered project's config_manager.set(), which accepted any key. A typo then becomes a setting that appears to be applied, reads back correctly, and does nothing - the hardest class of configuration bug to notice."
+    },
+    {
+      "id": "ranking_params_are_live",
+      "test": "tests/test_config.py::test_every_ranking_setting_changes_real_query_output",
+      "asserts": "Every setting flagged affects_ranking reorders results for at least one query, using its declared sensitivity_probe.",
+      "falsifier": "Make stage1.rank ignore max_depth and use the default instead.",
+      "why_this_falsifier": "A parameter that is documented, validated, hashed, and threaded through the call chain but never actually read is invisible to every other test in the suite - the config layer would be internally consistent and externally inert. This is also how the order-versus-state distinction was found: graph parameters reorder at most 1 query in 15, so a weak test passes on internal state alone."
     }
   ],
   "not_falsified": [

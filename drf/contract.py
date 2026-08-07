@@ -173,6 +173,11 @@ class ActionSpec:
     authority: Authority
     func: Callable
     doc: str
+    # The parameters folded into this action's replay key. Recorded so the
+    # configuration layer can *derive* which settings affect ranking instead
+    # of restating it by hand - see drf/config/manager.py. A hand-maintained
+    # flag drifts; a derived one cannot.
+    inputs: tuple[str, ...] = ()
 
 
 ACTIONS: dict[str, ActionSpec] = {}
@@ -329,6 +334,7 @@ def action(
             authority=authority,
             func=wrapper,
             doc=inspect.getdoc(func) or "",
+            inputs=tuple(inputs or ()),
         )
         wrapper._drf_action = name  # type: ignore[attr-defined]
         return wrapper
