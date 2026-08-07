@@ -203,6 +203,33 @@ Run the milestone gate before writing code.
 
 **Carry forward:** the FTS5 trigger correction (see above) applies the moment `graph.py` or M3 touches FTS5 — the plan's "lift verbatim" instruction is wrong.
 
+### Measured graph facts (drive `graph.py`)
+
+```
+266 nodes, 553 edges     max degree 27, p90 9, median 3, 5 nodes with 0 edges
+directed cycles present  -> visited-set is mandatory, not defensive
+BFS depth-2, 10 seeds    0.149 ms      full depth-4 all-pairs: 5 ms / 7,194 pairs
+```
+
+**Traverse bidirectionally.** Measured on our graph:
+
+| depth-2 expansion | forward-only | bidirectional |
+|---|---|---|
+| mean reach | 7.2 | **23.3** (3.22×) |
+| nodes reaching nothing | **81/266** | 5/266 |
+
+Forward-only would leave **76 nodes (28.6%) with zero graph signal purely because of edge direction**, not because they are unconnected; the residual 5 are exactly the known isolated nodes. No precomputed path index — at 0.149 ms, on-the-fly BFS makes one pure overhead.
+
+### `~/Downloads/playbooks/playbooks-v2/KNOWLEDGE-*.pb` — reviewed, 1 of 9 admitted
+
+Criterion: bears on an *open* M1.3–M1.8 decision **and** contains testable specifics **and** those are checkable. Default is exclusion.
+
+- **Admitted: `KNOWLEDGE-bidirectional-path-indexing.pb`** — for its bidirectional claim only, and only because it was re-verified on our graph (table above). Its path-index artifact is excluded on measurement.
+- **Excluded: the other 8.** No open decision + testable specific.
+- **Provenance, checked rather than assumed.** Its headline result reproduces *exactly* — `bash_execute` → **459** capabilities, per-depth **50/263/146** — against `python_apps/claude_kg_truth/claude-code-tools-kg.db` (511 nodes / 631 edges). The method was really run. But its `context_caching` example belongs to a *different* graph, its "789 nodes / 28,292 paths" index statistics match no graph on this system, and Pattern 4's code opens `unified-kg-optimized.db`, **which does not exist anywhere**. Verified method, real numbers, unreliable labelling.
+- **Zero citations across all 9 files (240 KB).**
+- **⚠️ RRF is actively rejected, not merely unused.** Reciprocal Rank Fusion appears in **5 of 9** files, and `KNOWLEDGE-graph-traversal.pb` Strategy 4 recommends it for "production queries". RRF blends rankings into one score, which *grants authority to the neural side* — exactly what the three-stage architecture forbids. It is the ecosystem's default advice and the most tempting wrong turn available.
+
 ---
 
 ### M1.2 planning record (kept for provenance)
