@@ -547,11 +547,24 @@ def test_spec_actions_not_yet_implemented_are_declared_not_forgotten():
     }
     pending = spec_names - implemented
     assert pending == {
-        # M1.4
-        "neural.propose_from_anchors",
-        "neural.encode_query_remote",
+        # Deliberately unregistered, with reasons - not oversights.
+        #
+        # merge.append_advisory: merge() is deterministic given (D, proposals),
+        #   but the proposals arrive boxed in Advisory[T] and the box may only
+        #   be opened inside merge itself. Declaring `inputs` for the replay
+        #   check would therefore require either unwrapping outside the
+        #   allowlist or hashing something that is not the real input. The
+        #   guarantee is enforced instead by merge's runtime postcondition,
+        #   which runs on every query - a stronger check than replay, since it
+        #   verifies the property rather than the repeatability.
         "merge.append_advisory",
-        # deferred: the manifest is currently read directly by store.read_manifest
+        # neural.encode_query_remote: RemoteHTTPProvider was cut from M1 by the
+        #   build plan. BGE is 1024-d and the corpus vectors are 384-d MiniLM -
+        #   different spaces that can never be compared - so a remote provider
+        #   needs the whole corpus re-embedded first. Deferred to M2.
+        "neural.encode_query_remote",
+        # store.load_manifest: the manifest is read directly by
+        #   store.read_manifest; there is no second reader to keep honest yet.
         "store.load_manifest",
     }, f"milestone drift: pending set changed to {sorted(pending)}"
 

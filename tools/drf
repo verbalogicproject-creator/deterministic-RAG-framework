@@ -79,6 +79,69 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_query(args: argparse.Namespace) -> int:
+    from drf.retrieval import merge as merge_module
+    from drf.retrieval import neural, stage1
+    from drf.retrieval.providers.null import NullProvider
+    from drf.retrieval.providers.stored_vectors import StoredVectorProvider
+    from drf.retrieval.tokenize import tokenize
+    from drf.store import iter_nodes
+
+    conn = connect(args.index)
+    index_hash = read_manifest(conn)["content_hash"]
+    terms = tokenize(args.text)
+
+    ranked_rows, rank_just = stage1.rank(
+        conn=conn, query_terms=terms, index_hash=index_hash,
+        seed_count=args.seeds, max_depth=args.depth,
+    )
+    ranked = [stage1.Ranked(*row) for row in ranked_rows]
+    deterministic = [r.node_id for r in ranked]
+
+    provider = (
+        StoredVectorProvider(conn) if args.neural == "stored" else NullProvider()
+    )
+    advisory, neural_just = neural.propose_from_anchors(
+        provider=provider, anchors=deterministic[:5], limit=args.k,
+        provider_name=provider.name, index_hash=index_hash,
+    )
+    merged = merge_module.merge(
+        deterministic=deterministic,
+        advisory=advisory,
+        known_ids={n.id for n in iter_nodes(conn)},
+    )
+
+    names = {n.id: n.name for n in iter_nodes(conn)}
+    detail = {r.node_id: r for r in ranked}
+    print(f"query    {args.text!r}   terms={terms}")
+    print(f"index    {index_hash[:16]}...  neural={args.neural}")
+    print(f"{'#':>3s}  {'origin':<14s} {'bm25':>12s} {'trm':>4s} {'dep':>4s}  name")
+    for result in merged[:args.k]:
+        row = detail.get(result.node_id)
+        if row is None:
+            print(f"{result.rank:3d}  {result.origin:<14s} {'-':>12s} {'-':>4s} "
+                  f"{'-':>4s}  {names.get(result.node_id, '?')[:52]}")
+        else:
+            depth = "-" if row.best_depth >= 1_000_000 else str(row.best_depth)
+            print(f"{result.rank:3d}  {result.origin:<14s} {row.bm25_q:12d} "
+                  f"{row.matched_terms:4d} {depth:>4s}  {names[row.node_id][:52]}")
+
+    authoritative = sum(
+        1 for r in merged if r.origin == merge_module.AUTHORITATIVE
+    )
+    print(f"\n{authoritative} authoritative, "
+          f"{len(merged) - authoritative} advisory (appended below)")
+
+    if args.explain:
+        print()
+        for justification in (rank_just, neural_just):
+            data = justification.to_dict()
+            print(f"  {data['action']:<28s} {data['determinism']:<14s} "
+                  f"{data['authority']:<14s} {data['evidence']}")
+    conn.close()
+    return 0
+
+
 def cmd_inspect(args: argparse.Namespace) -> int:
     conn = connect(args.index)
     manifest = read_manifest(conn)
@@ -101,6 +164,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--index", default=DEFAULT_OUT)
     p.add_argument("--compare", help="a second index whose content_hash must match")
     p.set_defaults(func=cmd_verify)
+
+    p = sub.add_parser("query", help="run a query through stage1 -> neural -> merge")
+    p.add_argument("text")
+    p.add_argument("--index", default=DEFAULT_OUT)
+    p.add_argument("-k", type=int, default=10)
+    p.add_argument("--neural", choices=("off", "stored"), default="off")
+    p.add_argument("--seeds", type=int, default=10)
+    p.add_argument("--depth", type=int, default=2)
+    p.add_argument("--explain", action="store_true",
+                   help="print the justification for each action")
+    p.set_defaults(func=cmd_query)
 
     p = sub.add_parser("inspect", help="print an index manifest")
     p.add_argument("--index", default=DEFAULT_OUT)

@@ -180,6 +180,43 @@ def _falsify_bidirectional_expansion() -> None:
     graph.neighbours = store.neighbours
 
 
+def _falsify_merge_is_append_only() -> None:
+    """Interleave advisory results into the prefix, AND neuter the guard.
+
+    Interleaving alone would only trip merge's runtime postcondition, which
+    would prove the *postcondition* fires - a different claim. To falsify the
+    *test*, the bad merge must be allowed to return quietly, so the assertion
+    is the only thing left that can notice.
+    """
+    import drf.retrieval.merge as merge_module
+
+    merge_module._assert_subordination = lambda merged, deterministic: None
+    real = merge_module.merge
+
+    def interleaving_merge(*, deterministic, advisory, known_ids=None):
+        merged = real(
+            deterministic=deterministic, advisory=advisory, known_ids=known_ids
+        )
+        tail = [r for r in merged if r.origin == merge_module.ADVISORY]
+        head = [r for r in merged if r.origin == merge_module.AUTHORITATIVE]
+        if not tail:
+            return merged
+        # Promote one advisory result into second place.
+        woven = head[:1] + tail[:1] + head[1:] + tail[1:]
+        return [r._replace(rank=i) for i, r in enumerate(woven)]
+
+    merge_module.merge = interleaving_merge
+
+
+def _falsify_advisory_allowlist() -> None:
+    """Widen the unwrap allowlist so any module can open the box."""
+    import drf.contract as contract
+
+    contract.ADVISORY_CONSUMERS = frozenset(
+        set(contract.ADVISORY_CONSUMERS) | {"tests.test_merge", "test_merge"}
+    )
+
+
 FALSIFIERS = {
     "ddl_forbidden_constructs": _falsify_ddl_forbidden_constructs,
     "collapse_preserves_metadata": _falsify_collapse_preserves_metadata,
@@ -192,6 +229,8 @@ FALSIFIERS = {
     "one_tokenizer": _falsify_one_tokenizer,
     "strict_total_order": _falsify_strict_total_order,
     "bidirectional_expansion": _falsify_bidirectional_expansion,
+    "merge_is_append_only": _falsify_merge_is_append_only,
+    "advisory_allowlist": _falsify_advisory_allowlist,
 }
 
 

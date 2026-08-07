@@ -81,6 +81,20 @@
       "asserts": "Graph expansion follows edges in both directions.",
       "falsifier": "Restrict store.neighbours to outgoing edges only.",
       "why_this_falsifier": "Honouring edge direction is the plausible reading, not an obvious mistake, which is what makes it worth pinning. Measured cost: at depth 2 it leaves 81 of 266 nodes reaching nothing against 5 bidirectionally, so 76 nodes lose all graph signal because of how a relation happened to be phrased."
+    },
+    {
+      "id": "merge_is_append_only",
+      "test": "tests/test_merge.py::test_advisory_never_disturbs_the_prefix",
+      "asserts": "merged[:len(D)] equals D elementwise, for every provider including hostile ones.",
+      "falsifier": "Promote one advisory result into second place AND neuter merge's runtime postcondition.",
+      "why_this_falsifier": "Interleaving alone would only trip the postcondition, which proves the postcondition fires - a different claim. Neutering the guard first forces the bad merge to return quietly, so the test assertion is the only thing left that can notice it. This is the central architectural guarantee, so it is the one place where proving the test itself can fail matters most."
+    },
+    {
+      "id": "advisory_allowlist",
+      "test": "tests/test_merge.py::test_unwrap_outside_merge_is_refused",
+      "asserts": "Advisory.unwrap() raises AuthorityViolation outside drf.retrieval.merge.",
+      "falsifier": "Add the test module to contract.ADVISORY_CONSUMERS.",
+      "why_this_falsifier": "The allowlist is the mechanism that makes advisory data physically unable to reach authoritative arithmetic. Widening it is exactly how the guarantee would erode in practice - one module at a time, each addition locally reasonable."
     }
   ],
   "not_falsified": [

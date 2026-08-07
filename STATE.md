@@ -226,7 +226,43 @@ Proven: injectivity on every query; **50 input shuffles → identical output**; 
 | Registry tests were **order-dependent** — passed in the full suite, failed running `test_ingest.py` alone, because action registration is an import side effect | `_import_all_action_modules()` populates the registry from within the test |
 | A malformed `spec/*.json` aborted collection with an opaque error (hit **twice**) | `test_every_spec_file_is_valid_json` in a module that doesn't import it, so it reports which file and where |
 
-## Next: M1.4 — `neural.py`, `providers/*`, `merge.py`
+## M1.4 ✅ — `neural.py`, `providers/*`, `merge.py` — **the centerpiece**
+
+```
+drf/retrieval/neural.py                    advisory actions, providers untrusted
+drf/retrieval/merge.py                     append-only; the ONLY unwrap site
+drf/retrieval/providers/{base,null,stored_vectors}.py
+tools/drf query --neural off|stored --explain
+tests/test_merge.py                        18 tests
+```
+
+**141 tests green. 13 falsifiers.** The guarantee is now a runtime fact, not a design intention:
+
+```
+merged[:len(D)] == D,  elementwise, in order, always
+```
+
+Proven against **eight providers** — null, stored-vectors, and six hostile: adversarial (proposes D reversed, trying to duplicate/promote), crashing, hanging, flooding (10,000 ids), lying (nonexistent ids), junk (non-strings). Every one leaves the prefix byte-identical. `discordant_pairs == 0` as an exact integer across all providers × all queries.
+
+Verified from the CLI too — authoritative prefix identical under `--neural off` and `--neural stored`: `prompt caching` 22 rows, `tool use` 40, `streaming` 3.
+
+**Determinism × authority, demonstrated.** `StoredVectorProvider` runs no model and touches no network — 384-d MiniLM vectors frozen in the index, already L2-normalised so cosine is a dot product, no numpy. It is fully `deterministic` and strictly `advisory`. Determinism is not a licence.
+
+**Vacuity guarded both ways.** `test_stored_vectors_actually_proposes_something` is the control: without it, every subordination test could pass because nothing ever reached the tail. Measured — the tail is populated (3 advisory results at k=25 for `prompt caching`).
+
+### The audit, again — and it needed care
+
+`discordant_pairs == 0` was flagged as possibly unfalsifiable. It is *not*, but the obvious falsifier would have been wrong: interleaving alone merely trips `merge()`'s runtime postcondition, which proves the **postcondition** fires — a different claim. The registered falsifier therefore **neuters the guard first**, so the bad merge returns quietly and the test assertion is the only thing left that can notice. Second falsifier widens `ADVISORY_CONSUMERS`, the way the guarantee would actually erode in practice: one locally-reasonable module at a time.
+
+### Deliberately unregistered actions, with reasons
+
+| Action | Why |
+|---|---|
+| `merge.append_advisory` | `merge()` is deterministic given (D, proposals), but proposals arrive **boxed** and the box may only open inside merge. Declaring `inputs` would require unwrapping outside the allowlist or hashing something that isn't the real input. The runtime postcondition is the stronger check — it verifies the *property*, not the repeatability. |
+| `neural.encode_query_remote` | `RemoteHTTPProvider` cut from M1 by the plan. BGE is 1024-d, corpus vectors are 384-d MiniLM — incomparable spaces, so it needs the whole corpus re-embedded. M2. |
+| `store.load_manifest` | No second reader to keep honest yet. |
+
+## Next: M1.5 — `config/*`, `spec/config_schema.json`
 
 **The centerpiece.** Subordination must hold against adversarial, crashing, hanging and flooding providers; the deterministic prefix sha must be identical in every case; `discordant_pairs == 0`.
 
