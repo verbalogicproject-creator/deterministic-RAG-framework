@@ -154,6 +154,32 @@ def _falsify_one_tokenizer() -> None:
     tokenize_module.terms = divergent
 
 
+def _falsify_strict_total_order() -> None:
+    """Drop the injective component, leaving the sort key non-injective.
+
+    Audited before the test was written: on this corpus the truncated key
+    collides for 66 candidates across 7 of 15 queries, so the mutation is
+    genuinely detectable rather than theoretically so.
+    """
+    import drf.retrieval.stage1 as stage1
+
+    real = stage1.sort_key
+    stage1.sort_key = lambda result: real(result)[:-1]
+
+
+def _falsify_bidirectional_expansion() -> None:
+    """Follow outgoing edges only - the reading that honours edge direction."""
+    import drf.store as store
+
+    store.neighbours = lambda conn, node_id: sorted(
+        {r[0] for r in conn.execute(
+            "SELECT to_id FROM edges WHERE from_id = ?", (node_id,)
+        )} - {node_id}
+    )
+    import drf.retrieval.graph as graph
+    graph.neighbours = store.neighbours
+
+
 FALSIFIERS = {
     "ddl_forbidden_constructs": _falsify_ddl_forbidden_constructs,
     "collapse_preserves_metadata": _falsify_collapse_preserves_metadata,
@@ -164,6 +190,8 @@ FALSIFIERS = {
     "candidates_not_truncated": _falsify_candidates_not_truncated,
     "scores_are_int": _falsify_scores_are_int,
     "one_tokenizer": _falsify_one_tokenizer,
+    "strict_total_order": _falsify_strict_total_order,
+    "bidirectional_expansion": _falsify_bidirectional_expansion,
 }
 
 

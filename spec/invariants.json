@@ -67,6 +67,20 @@
       "asserts": "The query path and the index path produce identical terms.",
       "falsifier": "Make the query path drop tokens of three characters or fewer, a filter indexing does not apply.",
       "why_this_falsifier": "The classic index/query divergence - a normalisation rule applied on one side only. Terms present in a document silently become unfindable, and no ranking or scoring test can observe it, because every score computed is correct for the terms that survived."
+    },
+    {
+      "id": "strict_total_order",
+      "test": "tests/test_stage1.py::test_sort_key_is_injective_on_every_query",
+      "asserts": "Every candidate in D has a distinct sort key, so the order is strict and total.",
+      "falsifier": "Drop the trailing node_id component from stage1.sort_key.",
+      "why_this_falsifier": "This invariant was audited BEFORE its test was written, because injectivity is guaranteed by construction once the key ends in a content-addressed primary key - the assertion risked being unable to fail, exactly like the shuffle test M1.2 retired. Measured first: the truncated key collides for 66 candidates across 7 of 15 queries, with 'tool use' collapsing 86 candidates to 29 distinct keys. The test can fail, so it is worth having."
+    },
+    {
+      "id": "bidirectional_expansion",
+      "test": "tests/test_stage1.py::test_expansion_is_bidirectional",
+      "asserts": "Graph expansion follows edges in both directions.",
+      "falsifier": "Restrict store.neighbours to outgoing edges only.",
+      "why_this_falsifier": "Honouring edge direction is the plausible reading, not an obvious mistake, which is what makes it worth pinning. Measured cost: at depth 2 it leaves 81 of 266 nodes reaching nothing against 5 bidirectionally, so 76 nodes lose all graph signal because of how a relation happened to be phrased."
     }
   ],
   "not_falsified": [

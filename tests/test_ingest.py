@@ -491,6 +491,22 @@ def test_source_has_no_node_collisions(source_conn):
 # spec <-> code bijection, code direction
 # --------------------------------------------------------------------------
 
+def _import_all_action_modules() -> None:
+    """Populate ACTIONS from every module that defines one.
+
+    Registration is an import side effect, so without this the two tests below
+    would measure *which test modules happened to be collected* rather than
+    what the package implements - passing in a full run and failing when
+    `test_ingest.py` is run alone. Importing explicitly makes them independent
+    of collection order.
+    """
+    import drf.ingest.build  # noqa: F401
+    import drf.retrieval.graph  # noqa: F401
+    import drf.retrieval.lexical  # noqa: F401
+    import drf.retrieval.stage1  # noqa: F401
+    import drf.retrieval.tokenize  # noqa: F401
+
+
 def test_registered_actions_appear_in_spec_with_matching_axes():
     """Now that real actions exist, the code -> spec direction can be asserted.
 
@@ -500,6 +516,7 @@ def test_registered_actions_appear_in_spec_with_matching_axes():
     the defining module is robust to that, and to test-ordering changes, in a
     way that a name-prefix convention would not be.
     """
+    _import_all_action_modules()
     with open(ROOT / "spec" / "actions.json") as f:
         spec = {e["name"]: e for e in json.load(f)["actions"]}
 
@@ -521,6 +538,7 @@ def test_spec_actions_not_yet_implemented_are_declared_not_forgotten():
     this pins *which* actions are still unimplemented, so landing one without
     a spec entry - or deleting a spec entry - fails here.
     """
+    _import_all_action_modules()
     with open(ROOT / "spec" / "actions.json") as f:
         spec_names = {e["name"] for e in json.load(f)["actions"]}
     implemented = {
@@ -529,9 +547,6 @@ def test_spec_actions_not_yet_implemented_are_declared_not_forgotten():
     }
     pending = spec_names - implemented
     assert pending == {
-        # M1.3
-        "graph.expand",
-        "stage1.rank",
         # M1.4
         "neural.propose_from_anchors",
         "neural.encode_query_remote",

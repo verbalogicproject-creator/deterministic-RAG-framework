@@ -296,3 +296,24 @@ def test_trace_digest_excludes_timing():
     t2.record(j2)
     assert j1.elapsed_ns != j2.elapsed_ns or True  # timings may coincide
     assert t1.digest() == t2.digest(), "trace digest must not depend on timing"
+
+
+# --------------------------------------------------------------------------
+# Spec files parse
+# --------------------------------------------------------------------------
+
+def test_every_spec_file_is_valid_json():
+    """A malformed spec must fail as a test, not abort collection.
+
+    `spec/invariants.json` is read at import time by `test_falsifiers.py`, so
+    a stray missing comma there raises during collection and takes the entire
+    suite down with an opaque JSONDecodeError. This test lives in a module
+    with no such import, so it survives to report which file is broken and
+    where.
+    """
+    for path in sorted((ROOT / "spec").glob("*.json")):
+        with open(path) as f:
+            try:
+                json.load(f)
+            except json.JSONDecodeError as exc:
+                raise AssertionError(f"{path.name}: {exc}") from exc

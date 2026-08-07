@@ -193,9 +193,54 @@ content_hash  90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a
 | `avgdl` stored as a float would not round-trip | Store `total_len` and `n` as ints; derive `avgdl` at use time |
 | A term with postings but no `df` row would score silently | Raises `ValueError` — an inconsistent index must not produce a plausible score |
 
-## Next: M1.3 — `graph.py`, `stage1.py`
+## M1.3 ✅ — `graph.py`, `stage1.py`
 
-Run the milestone gate before writing code.
+```
+drf/retrieval/graph.py    bidirectional bounded BFS -> {node_id: best_depth}
+drf/retrieval/stage1.py   the strict total order D
+tests/test_stage1.py      16 tests
+```
+
+**119 tests green. 11 falsifiers registered.**
+
+### Sort key — two deliberate plan deviations
+
+```
+(-bm25_q, -matched_terms, best_depth, doc_len, node_id)
+```
+
+**No `s1_q`.** The plan had `(-s1_q, -bm25_q, …)` blending lexical and graph signal. Any blend needs a weight, and **M1 carries no relevance labels** — a weight chosen now could be asserted but never validated. Lexicographic composition is parameter-free and does real work: graph proximity orders exactly the documents BM25 cannot distinguish. Weighted combination is an **M2** question, to be settled when labels exist. This also keeps structural distance from RRF, which can invert a strictly better lexical match; here that is impossible by construction (`test_graph_never_overrides_a_strictly_better_lexical_match`).
+
+**D contains lexical candidates only.** Expansion supplies `best_depth`; it does not inject documents containing no query term. Admitting them would be a relevance claim M1 cannot justify. Recorded as an M2 decision rather than taken silently.
+
+### The audit fired — and passed
+
+`len(set(sort_keys)) == len(D)` was flagged as *probably vacuous*, since injectivity is guaranteed once the key ends in a content-addressed PK. **Measured before writing the test:** dropping `node_id` collides **66 candidates across 7 of 15 queries** (`tool use`: 86 candidates → 29 distinct keys). The test can fail, so it is worth having. Falsifier registered as `strict_total_order`.
+
+Proven: injectivity on every query; **50 input shuffles → identical output**; no tie at any truncation boundary (killing the `[:15]` cascade at the root); `seed_count` 10→11 and `max_depth` 1→3 each change output for ≥1 query; expansion is independent of seed order; terminates despite directed cycles; depth is monotone in `max_depth`; graph depth *does* resolve ties BM25 leaves undefined.
+
+### Gaps found and fixed while implementing
+
+| Gap | Fix |
+|---|---|
+| Registry tests were **order-dependent** — passed in the full suite, failed running `test_ingest.py` alone, because action registration is an import side effect | `_import_all_action_modules()` populates the registry from within the test |
+| A malformed `spec/*.json` aborted collection with an opaque error (hit **twice**) | `test_every_spec_file_is_valid_json` in a module that doesn't import it, so it reports which file and where |
+
+## Next: M1.4 — `neural.py`, `providers/*`, `merge.py`
+
+**The centerpiece.** Subordination must hold against adversarial, crashing, hanging and flooding providers; the deterministic prefix sha must be identical in every case; `discordant_pairs == 0`.
+
+**Harvest from M1.3.** `Advisory[T]`'s allowlist is `drf.retrieval.merge` — that module does not exist yet, so the boxing has never actually been exercised end-to-end. Stage 1 now produces a real D to append below, so M1.4 is the first point where the central guarantee is testable rather than declared.
+
+**Audit before writing.** `discordant_pairs == 0` risks the same vacuity: if `merge()` appends by construction, the postcondition may be unable to fail. **Register a falsifier first** — make `merge()` interleave advisory results into D — and require the test to fail under it. Also falsify the `Advisory.unwrap()` allowlist by adding a second module.
+
+**Carry forward:** RRF remains actively rejected. M1.4 is where it would be most tempting, since that is exactly where a "combine the two rankings" instinct arrives.
+
+---
+
+### M1.3 planning record (kept for provenance)
+
+Milestone gate, run before writing code.
 
 **Harvest from M1.2.** The injective sort key is now known to be *load-bearing, not defensive*: **7 of 15** ordinary queries have exact ties in their top set, and the reference corpus reproduces one exactly (`d2` and `d5` both score `333105558` on `alpha`). Without a total order, "the best result" is undefined for nearly half of real queries — and we proved the cost of not noticing, by publishing tiebreak-dependent figures ourselves. `tests/test_retrieval.py::test_exact_ties_are_pervasive_on_the_real_corpus` already pins this.
 
