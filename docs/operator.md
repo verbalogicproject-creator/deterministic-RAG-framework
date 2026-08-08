@@ -102,7 +102,7 @@ display does not make it a different computation.
 
 ## What it will not do
 
-There are no relevance judgements in this repository, so NO claim is made about retrieval quality. Milestone 2.0 built the instrument that would measure it - metrics, controls, a label format and self-checks - and deliberately built it before the labels, so that 'is the harness right?' and 'is the system good?' are not the same experiment. M2.1 supplies the judgements. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
+49 model-generated judgements over 7 queries now exist (stratum A). They are NOT human judgements, and the annotator authored the retrieval system - see retrieval_quality.annotator. The one quality measurement made from them is a FAIL against a margin declared in advance. No positive claim about retrieval quality is made anywhere in this repository.
 
 - 266 nodes is small. Every determinism metric is perfect here, which demonstrates determinism, not scalability.
 - An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one.

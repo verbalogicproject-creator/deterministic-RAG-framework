@@ -298,10 +298,15 @@ def cmd_eval(args: argparse.Namespace) -> int:
                 print(f"  {name:12s} {row['ndcg']:8.4f} {row['recall']:8.4f} "
                       f"{row['mrr']:8.4f} {row['gain_total']:7d} "
                       f"{row['queries_with_no_relevant_hit']:7d}")
-            print(f"  margin over {block['best_blind_control']}: "
+            best = block["best_blind_control"]
+            record = block["per_query_record"][best]
+            print(f"  margin over {best}: "
                   f"{block['ndcg_margin_over_best_blind']:+.4f} "
                   f"(required {block['required_margin']:+.4f}) "
                   f"{'PASS' if block['clears_required_margin'] else 'FAIL'}")
+            print(f"  per-query vs {best}: {record['wins']}W "
+                  f"{record['losses']}L {record['ties']}T"
+                  f"{'' if record['majority'] else '   <- a mean can hide this'}")
     return 0
 
 

@@ -80,9 +80,30 @@ $horizon_second_finding
 This is the guarantee working, not a weakness. It is stated here because it
 also bounds what any future evaluation can show: $horizon_why_m2
 
+## The first quality measurement — and it fails
+
+`$quality_producer`
+
+$quality_verdict
+
+$quality_table
+
+$quality_findings
+
+**What this does not show.** $quality_not_shown
+
+**Provenance.** $quality_annotator
+
+The margin was fixed at 0.05 in `spec/evaluation.json` on the day the harness
+was built, before any judgement existed, and **it has not been revised**. A test
+checks the recorded rows against the live declared value, so lowering the
+threshold to convert this failure into a pass fails the suite instead.
+
 ## What is NOT proven
 
 $scope_no_labels
+
+$scope_underpowered
 
 $scope_no_quality
 

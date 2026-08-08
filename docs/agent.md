@@ -8,7 +8,7 @@
 Read this before changing anything. It states what is enforced, what will raise,
 and which assumptions are already measured so you do not re-derive them.
 
-**Spec hash** `c747755c9fde2d000f11a4b61eab9311dd138937cc3898344a2f1b54ea192a80` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
+**Spec hash** `56f56a620b551b4e082b02a0be659c1d454a032000046d96ebe580c389d917ac` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`
 
 ## Verified facts — do not re-measure, do not assume otherwise
@@ -126,4 +126,11 @@ Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -
 
 ## Scope
 
-There are no relevance judgements in this repository, so NO claim is made about retrieval quality. Milestone 2.0 built the instrument that would measure it - metrics, controls, a label format and self-checks - and deliberately built it before the labels, so that 'is the harness right?' and 'is the system good?' are not the same experiment. M2.1 supplies the judgements. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
+49 model-generated judgements over 7 queries now exist (stratum A). They are NOT human judgements, and the annotator authored the retrieval system - see retrieval_quality.annotator. The one quality measurement made from them is a FAIL against a margin declared in advance. No positive claim about retrieval quality is made anywhere in this repository.
+
+7 queries with 1-7 candidates each. The per-query record against a relevance-blind control is 3 wins / 3 losses / 1 tie. Any aggregate quality figure from this label set is dominated by single-query variation and must not be quoted as a system property.
+
+**The one quality measurement on record is a FAIL.** FAIL at every depth against the margin declared on 2026-08-08, before any label existed. Do not
+quote a positive quality figure for this system; there is not one. The declared
+margin is 0.05 and must not be revised to convert the failure - a test checks
+the recorded rows against the live declared value.

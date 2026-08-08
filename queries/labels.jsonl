@@ -1,0 +1,49 @@
+{"query_id": "q08", "node_id": "n_3a19d333b3c716acc36d1344918f3c96", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q08", "node_id": "n_089be4c277629adba321ebd8874a8c46", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q08", "node_id": "n_253eae361f4e614c5bfcc904263bc418", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q08", "node_id": "n_51d0dcb758731a95041309e8b9b13757", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q12", "node_id": "n_51d0dcb758731a95041309e8b9b13757", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q12", "node_id": "n_089be4c277629adba321ebd8874a8c46", "grade": 2, "note": "model-generated (Claude Opus 5), graded blind to rank. summarisation, but scoped to PDFs; a reasonable answer to the generic query"}
+{"query_id": "q12", "node_id": "n_e32778eecebe901f7ba0f7861a9cdacb", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. document parsing and Q&A, not summarisation - adjacent"}
+{"query_id": "q12", "node_id": "n_0020c1752b448bbc0f8092b702a536ab", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q12", "node_id": "n_3a19d333b3c716acc36d1344918f3c96", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q06", "node_id": "n_ca7ce971b4b3195cf43321f5bc6e8824", "grade": 2, "note": "model-generated (Claude Opus 5), graded blind to rank. genuinely streaming, but of thinking specifically"}
+{"query_id": "q06", "node_id": "n_a3ee97b1cb7c19124b32c0b3d2dbd4c2", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q06", "node_id": "n_4823686ef07456ab70ef49d6b1141dc2", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q06", "node_id": "n_fb5e6c4ff930cd6ffd804872c91a8eb3", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q06", "node_id": "n_87d8a998f18e5538a73641021c0bb8da", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q06", "node_id": "n_b610fa7aab0c71e71f544eba4db7f2a3", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q13", "node_id": "n_9d38f632bf78bb84473b1c031c04ef13", "grade": 2, "note": "model-generated (Claude Opus 5), graded blind to rank. a classification use case rather than the capability"}
+{"query_id": "q13", "node_id": "n_9492c89cbe8aee7add3108a3933b9fbb", "grade": 2, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q13", "node_id": "n_83325f423186611d7c67c1d302a99046", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q13", "node_id": "n_f2c2f25df61f7b9a129507d4d89f33c0", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. uses intent classification as a means; the document is about routing"}
+{"query_id": "q13", "node_id": "n_0a6130cf31da61d2dc439a90d4c1e00e", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q13", "node_id": "n_e95f290609a6cfa82ba09a82b3b844f6", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q13", "node_id": "n_7b775f8a4a405d771c6e30d93cdc7c37", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. sentiment analysis is an instance of classification"}
+{"query_id": "q15", "node_id": "n_4938148a1bf80156db2dc8f08f88426c", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_d6df562cea5012c669076e238b3a810e", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_cd502d1e5da7352c16a816d7913384d4", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_5161a530456be7da38d4b91b21d19740", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_6d1ddf2548f5721f01b2fd1f8193947e", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_9c68b2559d00be02549dfdaa7106ef64", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_1e0c52746f4f24faa6f2e4912fbb3710", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q15", "node_id": "n_baad52950c1fc19a1f35f1ff2ef627b0", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_e32778eecebe901f7ba0f7861a9cdacb", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_089be4c277629adba321ebd8874a8c46", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_0020c1752b448bbc0f8092b702a536ab", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_5369cacb7abef229f11c654f672cc278", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. PDF generation, not reading - opposite direction from 'vision'"}
+{"query_id": "q07", "node_id": "n_50d9efa129c64bf4183f3b0e7eec2390", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_3a19d333b3c716acc36d1344918f3c96", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. supports PDF documents, but the subject is citations"}
+{"query_id": "q07", "node_id": "n_c273644c5aa095864c869f1a6d4f3ae5", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_cadc4ca2cf7af13c9742bcf632adcfcc", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q07", "node_id": "n_0a6130cf31da61d2dc439a90d4c1e00e", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q14", "node_id": "n_2d3c8bb74c732e2edbc2147a27938b4d", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q14", "node_id": "n_39b161cfc5dd6aff28a68be2e8325f03", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q14", "node_id": "n_b1660695e7d308e6112b3a137eeb4b2a", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. specialised agents, but not delegation from a parent"}
+{"query_id": "q14", "node_id": "n_b3453e7d6b38d7502ea74da69062aef0", "grade": 1, "note": "model-generated (Claude Opus 5), graded blind to rank. agents in general, not sub-agent delegation"}
+{"query_id": "q14", "node_id": "n_ab0c760e741064e8cd8b9fbb6d827e1f", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q14", "node_id": "n_d7f81c855d78f670f4a94dd4355d44b0", "grade": 2, "note": "model-generated (Claude Opus 5), graded blind to rank. coordinating specialised agents - the orchestrator half of the pattern"}
+{"query_id": "q14", "node_id": "n_0e7a1d52e3658fb9c1a0bc79069ae8ea", "grade": 3, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q14", "node_id": "n_a20fb20b41352c402baab4c1c2ac3d23", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}
+{"query_id": "q14", "node_id": "n_bde267d25e575f741c9567d9ee7415b7", "grade": 2, "note": "model-generated (Claude Opus 5), graded blind to rank. delegates to specialised workers; subagents under another name"}
+{"query_id": "q14", "node_id": "n_3371c2930111a7b8bf7f51799adf7a2b", "grade": 0, "note": "model-generated (Claude Opus 5), graded blind to rank"}

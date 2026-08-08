@@ -13,7 +13,7 @@ is mechanically prevented from changing an authoritative result. It can only
 append below one.
 
 ```
-release 0.0.5 · spec c747755c9fde · index 90ab5db96958
+release 0.0.6 · spec 56f56a620b55 · index 90ab5db96958
 Python 3.12+ · standard library only · no dependencies
 ```
 
@@ -83,9 +83,39 @@ A reachable horizon is necessary but not sufficient. The three out-of-vocabulary
 This is the guarantee working, not a weakness. It is stated here because it
 also bounds what any future evaluation can show: A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off. Reporting that as a finding about neural retrieval would be a category error, and measuring the horizon first is what makes the error visible in advance.
 
+## The first quality measurement — and it fails
+
+`python3 tools/drf eval quality --index index.db`
+
+FAIL at every depth against the margin declared on 2026-08-08, before any label existed.
+
+| depth | system nDCG | best blind control | its nDCG | oracle | margin | required | per-query W/L/T |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.8367 | shuffle_3 | 0.7959 | 1.0 | 0.0408 | 0.05 | 2W 1L 4T |
+| 5 | 0.8787 | id_order | 0.8412 | 0.9811 | 0.0376 | 0.05 | 3W 3L 1T |
+| 10 | 0.9064 | id_order | 0.8761 | 0.9787 | 0.0303 | 0.05 | 3W 3L 1T |
+| 20 | 0.9064 | id_order | 0.8761 | 0.9787 | 0.0303 | 0.05 | 3W 3L 1T |
+
+- The system fails the declared margin at every depth. The margin was fixed at 0.05 on 2026-08-08 before any judgement existed and has NOT been revised; a threshold changed after seeing the number it must pass is not a threshold.
+- The mean understated the problem. Per query at depth 10 the record against id_order is 3 wins, 3 losses, 1 tie - a coin flip. The positive mean comes from one query winning by +0.3569 while three losses were smaller. On this label set there is NO evidence the ranking beats sorting by sha256 hash.
+- id_order - sorting by content hash, relevance-blind and perfectly deterministic - scores 0.8761 nDCG@10. It is the counter-example the control was chosen to provide: determinism is not a quality property, and here it is nearly as good as the ranker on the metric.
+- The advisory layer found exactly ONE relevant document that lexical retrieval missed, across 7 queries. Of 21 stored-vector proposals, 18 were graded irrelevant, 2 marginal, 1 relevant. Recall of D alone is already 0.9714 at depth 10, so there was almost no room to contribute.
+- Small-sample saturation is severe. Candidate sets run 1 to 7 documents; q08 has |D| = 1, where every ranker ties trivially. nDCG's log discount is gentle enough that even a poor ordering of a mostly-relevant set scores above 0.77.
+
+**What this does not show.** That the ranking is bad. 7 queries and a 3-3 split is absence of evidence, not evidence of absence - the same data is consistent with a real but small effect. What it does show is that the current evidence CANNOT support a quality claim, which is the outcome the harness was built to make unavoidable.
+
+**Provenance.** MODEL-GENERATED (Claude Opus 5), graded blind to rank. NOT human judgements. The annotator also authored the retrieval system, which is a real confound: relevance calls may correlate with what this ranking already surfaces. Blind grading removes position bias but not authorship bias.
+
+The margin was fixed at 0.05 in `spec/evaluation.json` on the day the harness
+was built, before any judgement existed, and **it has not been revised**. A test
+checks the recorded rows against the live declared value, so lowering the
+threshold to convert this failure into a pass fails the suite instead.
+
 ## What is NOT proven
 
-There are no relevance judgements in this repository, so NO claim is made about retrieval quality. Milestone 2.0 built the instrument that would measure it - metrics, controls, a label format and self-checks - and deliberately built it before the labels, so that 'is the harness right?' and 'is the system good?' are not the same experiment. M2.1 supplies the judgements. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
+49 model-generated judgements over 7 queries now exist (stratum A). They are NOT human judgements, and the annotator authored the retrieval system - see retrieval_quality.annotator. The one quality measurement made from them is a FAIL against a margin declared in advance. No positive claim about retrieval quality is made anywhere in this repository.
+
+7 queries with 1-7 candidates each. The per-query record against a relevance-blind control is 3 wins / 3 losses / 1 tie. Any aggregate quality figure from this label set is dominated by single-query variation and must not be quoted as a system property.
 
 What M1 proves is reproducibility and subordination. Recall, nDCG and MRR need labels. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.
 

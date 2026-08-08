@@ -203,6 +203,9 @@ def run_quality(
         margin = aggregated["system"]["ndcg"] - best_blind
         report["depths"][depth] = {
             "aggregate": aggregated,
+            "per_query_record": {
+                name: _sign_test(per_query, depth, name) for name in blind
+            },
             "best_blind_control": max(blind, key=lambda n: aggregated[n]["ndcg"]),
             "ndcg_margin_over_best_blind": margin,
             "required_margin": spec["min_ndcg_margin"],
@@ -215,6 +218,37 @@ def run_quality(
             ],
         }
     return report
+
+
+def _sign_test(per_query: dict, depth: int, control: str) -> dict:
+    """How many queries the system actually beats, as integers.
+
+    **Added after the harness misled its own author.** The declared criterion
+    was a margin on *mean* nDCG, and on the first real label set it reported
+    +0.0303 at depth 10 - a small shortfall that read as "nearly good enough".
+    The per-query record was 3 wins, 3 losses, 1 tie: a coin flip. The mean was
+    positive only because one query's +0.36 outweighed three smaller losses.
+
+    That is precisely the failure this project's own rule exists to prevent -
+    *assert integers, report floats* - and the margin test broke it by gating
+    on an averaged float. A win count cannot be rescued by one lucky query.
+
+    The declared margin is **not** changed by this; a threshold revised after
+    seeing the number it must pass is not a threshold. This is an additional
+    diagnostic reported alongside it.
+    """
+    wins = losses = ties = 0
+    for result in per_query.values():
+        judged = result["depths"][depth]
+        system, other = judged["system"].ndcg, judged[control].ndcg
+        if system > other + 1e-12:
+            wins += 1
+        elif other > system + 1e-12:
+            losses += 1
+        else:
+            ties += 1
+    return {"wins": wins, "losses": losses, "ties": ties,
+            "decided": wins + losses, "majority": wins > losses}
 
 
 def run_advisory_invariance(

@@ -197,9 +197,18 @@ def test_peer_and_plain_docs_state_the_scope_limit(context):
     # rewording the limit to "NO claim is made about retrieval quality" failed
     # a test whose subject had not changed. A test that forces prose to be
     # written around it stops guarding meaning and starts guarding phrasing.
-    assert "no relevance" in peer
-    assert "no claim" in peer
+    #
+    # Re-aimed 2026-08-08. It also asserted "no relevance", which expired the
+    # moment labels existed. The durable requirement was never "there are no
+    # labels" - it is "no POSITIVE quality claim without evidence that clears a
+    # margin declared in advance". Labels now exist and the measurement is a
+    # FAIL, so the document must say so.
+    assert "no claim" in peer or "no positive claim" in peer
     assert "retrieval quality" in peer
+    assert "fail" in peer, (
+        "the recorded quality measurement does not clear its declared margin; "
+        "peer.md must state that rather than omitting it"
+    )
 
     # Markdown emphasis can split a phrase ("does **not** claim"), so match on
     # words rather than on a contiguous sentence - the first version of this

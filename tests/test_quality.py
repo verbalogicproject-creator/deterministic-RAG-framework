@@ -430,22 +430,78 @@ def _numeric_metric_keys(node, path="") -> list[str]:
     return found
 
 
-def test_no_quality_figure_is_published_anywhere_yet():
-    """M2.0 delivers an instrument, not a result.
+def test_every_published_quality_figure_carries_its_provenance():
+    """A quality number may exist - but only bound to the labels that made it.
 
     Guards the exact drift this project was recovered from: a number appearing
-    in documentation without a producer. There are no labels, so any nDCG or
-    recall figure would be fabricated.
+    in documentation without a producer.
 
-    Scans **structure, not prose**. The first version matched any occurrence of
-    the substring `ndcg@` and failed on the spec's own worked example - a
-    sentence explaining why a bare figure is not evidence. Prose is where
-    explanation lives; a key bound to a number is where a claim lives, and only
-    the second is a publication.
+    **The premise changed on 2026-08-08.** This test used to assert that *no*
+    quality figure existed anywhere, which was true until labels did. A guard
+    whose premise expires must be re-aimed, not deleted, so it now enforces the
+    rule that was always the real one: a quality figure must sit in a block
+    carrying both a `producer` command and a `labels_hash`. Edit one grade and
+    every nDCG changes with no commit touching any code - so a figure without a
+    label hash is a figure without a producer.
+
+    Scans **structure, not prose**. An earlier version matched the substring
+    `ndcg@` and failed on the spec's own worked example, a sentence explaining
+    why a bare figure is not evidence.
     """
     for path in sorted((ROOT / "spec").glob("*.json")):
-        offenders = _numeric_metric_keys(json.loads(path.read_text()))
-        assert not offenders, f"{path.name} publishes {offenders}"
+        document = json.loads(path.read_text())
+        for offender in _numeric_metric_keys(document):
+            block = document[offender.split(".")[0]]
+            assert isinstance(block, dict), f"{path.name}: {offender} is unanchored"
+            assert block.get("producer"), (
+                f"{path.name}: {offender} published with no producer command"
+            )
+            assert block.get("labels_hash"), (
+                f"{path.name}: {offender} is a quality figure with no "
+                f"labels_hash; it cannot be reproduced or falsified"
+            )
+
+
+def test_the_declared_margin_was_not_revised_to_convert_a_failure():
+    """The single most corrosive edit possible here, blocked mechanically.
+
+    `spec/evaluation.json` fixed `min_ndcg_margin` at 0.05 on 2026-08-08 before
+    any judgement existed. The recorded rows are checked against the **live**
+    declared value rather than a number copied beside them, so lowering the
+    threshold to turn the recorded FAIL into a PASS fails this test instead.
+    """
+    evaluation = json.loads((ROOT / "spec" / "evaluation.json").read_text())
+    benchmarks = json.loads((ROOT / "spec" / "benchmarks.json").read_text())
+    block = benchmarks.get("retrieval_quality")
+    if block is None:
+        pytest.skip("no quality measurement recorded yet")
+
+    declared = evaluation["min_ndcg_margin"]
+    assert declared == 0.05, (
+        f"min_ndcg_margin is {declared}, not the 0.05 declared on 2026-08-08. "
+        f"If raised deliberately, record it as a change of standard."
+    )
+    for row in block["rows"]:
+        assert row["required"] == declared
+        assert row["clears"] == (row["margin"] >= declared), (
+            f"depth {row['depth']} records clears={row['clears']} for margin "
+            f"{row['margin']} against a declared {declared}"
+        )
+
+
+def test_the_quality_result_records_that_its_labels_are_model_generated():
+    """Provenance is part of the result, not a footnote.
+
+    The annotator also authored the retrieval system. Blind grading removes
+    position bias; it does not remove authorship bias, and a reader must be
+    told before reading any figure.
+    """
+    benchmarks = json.loads((ROOT / "spec" / "benchmarks.json").read_text())
+    block = benchmarks.get("retrieval_quality")
+    if block is None:
+        pytest.skip("no quality measurement recorded yet")
+    assert "MODEL-GENERATED" in block["annotator"]
+    assert "NOT human" in block["annotator"]
 
 
 # --------------------------------------------------------------------------

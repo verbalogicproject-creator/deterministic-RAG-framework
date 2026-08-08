@@ -1,7 +1,7 @@
 # Project State — resume here
 
-**Last checkpoint:** M2.0 complete and the M2.1 labelling worksheet generated. 245 tests, 24 falsifiers, all files pass in isolation (2026-08-08). Released `v0.0.4`.
-**Next:** M2.1 — grade stratum A (49 judgements) in `queries/labels.worksheet.jsonl`. Read `queries/LABELLING.md` first.
+**Last checkpoint:** M2.1 stratum A graded and measured. **The system FAILS the declared quality margin at every depth.** 247 tests, 24 falsifiers, isolation clean (2026-08-08). Released `v0.0.6`.
+**Next:** M2.2 — expand the query set. The current evidence cannot support a quality claim either way, and more labels on 7 queries will not change that.
 **Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
@@ -485,6 +485,65 @@ Ran the full chain on throwaway grades (assigned by rank position, so not judgem
 ### Staleness guard
 
 `STRATA` hand-lists query ids, which is the same rot as the order-dependent registry bug from M1. The test does not check the list exists — it re-derives `|D|` and asserts stratum A's queries **actually have** the small horizon that justified selecting them. Assert the reason, not the artefact.
+
+---
+
+## M2.1 ✅ — stratum A graded and measured. **Result: FAIL.**
+
+`queries/labels.jsonl`, 49 judgements over 7 queries, `labels_hash 33d8e1beb4302bbc…`.
+
+> ⚠️ **Provenance.** The labels are **model-generated (Claude Opus 5)**, graded **blind to rank** — candidates were presented in sha256 order with names and descriptions only, no D-rank, no origin. Blind grading removes position bias. It does **not** remove authorship bias: the annotator also wrote the retrieval system, so relevance calls may correlate with what this ranking already surfaces. The user asked for this after I flagged the circularity; it is recorded, not hidden.
+
+### The measurement
+
+| depth | system nDCG | best blind control | its nDCG | oracle | margin | required | per-query |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.8367 | shuffle_3 | 0.7959 | 1.0000 | +0.0408 | 0.05 | 2W 1L 4T |
+| 5 | 0.8787 | id_order | 0.8412 | 0.9811 | +0.0376 | 0.05 | 3W 3L 1T |
+| 10 | 0.9064 | id_order | 0.8761 | 0.9787 | +0.0303 | 0.05 | **3W 3L 1T** |
+| 20 | 0.9064 | id_order | 0.8761 | 0.9787 | +0.0303 | 0.05 | **3W 3L 1T** |
+
+**The margin was NOT revised.** It was fixed at 0.05 on 2026-08-08 before any judgement existed. `tests/test_quality.py::test_the_declared_margin_was_not_revised_to_convert_a_failure` checks the recorded rows against the *live* declared value, so lowering it to manufacture a pass fails the suite.
+
+### ⚠️ The mean hid the real problem — and that is a defect in M2.0
+
+The aggregate said "+0.0303, a near miss". The **per-query record at depth 10 is 3 wins, 3 losses, 1 tie** — a coin flip. The mean is positive only because q07 won by +0.3569 while three losses were smaller:
+
+```
+q06 |D|=3  system 0.8452  id_order 1.0000  LOSS -0.1548
+q07 |D|=6  system 0.9884  id_order 0.6315  win  +0.3569
+q08 |D|=1  system 1.0000  id_order 1.0000  tie
+q12 |D|=2  system 0.9468  id_order 0.7896  win  +0.1572
+q13 |D|=4  system 0.7871  id_order 0.9655  LOSS -0.1784
+q14 |D|=7  system 0.7775  id_order 0.8957  LOSS -0.1182
+q15 |D|=5  system 1.0000  id_order 0.8503  win  +0.1497
+```
+
+**This is the project's own rule broken by the harness that enforces it.** *Assert integers, report floats* — and the margin test gated on an **averaged float**. A win count cannot be rescued by one lucky query. `_sign_test()` added to `evaluate.py`; the declared criterion is unchanged, this is an additional diagnostic reported beside it.
+
+### What the result does and does not say
+
+- **Does say:** on this label set there is **no evidence** the ranking beats sorting by sha256 hash. `id_order` — relevance-blind, perfectly deterministic — scores 0.8761 nDCG@10 against the system's 0.9064.
+- **Does not say:** that the ranking is bad. 7 queries and a 3–3 split is *absence of evidence*, equally consistent with a real but small effect.
+- **Does say, clearly:** the current evidence **cannot support a quality claim**, which is exactly the outcome the harness was built to force.
+
+### The advisory layer: 1 relevant document in 21 proposals
+
+Of 21 stored-vector proposals pooled into stratum A, **18 graded 0, 2 graded 1, 1 graded 2**. Exactly one relevant document across 7 queries lay outside D (`Orchestrator-Workers` for `sub agents`). Recall of D alone is already **0.9714** at depth 10 — there was almost nowhere to contribute. Preliminary and underpowered, but it is the first evidence on the neural layer's actual value here, and it is not encouraging.
+
+### Small-sample saturation is severe
+
+Candidate sets run **1 to 7** documents. `q08` has |D| = 1, where every ranker ties trivially. nDCG's log discount is gentle enough that even a poor ordering of a mostly-relevant set scores above 0.77. This is the corpus-size warning from the M2 gate, now measured rather than predicted.
+
+### Two guards re-aimed, not deleted
+
+Both had premises that expired the moment labels existed:
+- `test_no_quality_figure_is_published_anywhere_yet` → **`test_every_published_quality_figure_carries_its_provenance`**. The durable rule was never "no numbers"; it is "no number without a producer *and* a `labels_hash`".
+- `test_peer_and_plain_docs_state_the_scope_limit` asserted `"no relevance"` in peer.md. Now asserts the document states the failure.
+
+### ➡️ M2.2 is re-scoped again: expand the query set first
+
+More labels on these 7 queries will not resolve a 3–3 split; the variance is between queries, not within them. M2.2 leads with **query-set expansion** — which also unblocks the graph decision, still stuck at a real sample size of one.
 
 ---
 

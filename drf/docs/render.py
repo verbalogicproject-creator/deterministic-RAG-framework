@@ -186,7 +186,27 @@ def build_context(index_path: str | None = None) -> dict:
         "horizon_second_finding": benchmarks["advisory_horizon"]["second_finding"],
         "horizon_why_m2": benchmarks["advisory_horizon"]["why_it_matters_for_M2"],
 
+        "quality_producer": benchmarks["retrieval_quality"]["producer"],
+        "quality_verdict": benchmarks["retrieval_quality"]["verdict"],
+        "quality_annotator": benchmarks["retrieval_quality"]["annotator"],
+        "quality_labels_hash": benchmarks["retrieval_quality"]["labels_hash"],
+        "quality_judgements": benchmarks["retrieval_quality"]["judgements"],
+        "quality_queries": benchmarks["retrieval_quality"]["queries"],
+        "quality_table": _md_table(
+            benchmarks["retrieval_quality"]["rows"],
+            [("depth", "depth"), ("system_ndcg", "system nDCG"),
+             ("best_blind", "best blind control"),
+             ("best_blind_ndcg", "its nDCG"), ("oracle_ndcg", "oracle"),
+             ("margin", "margin"), ("required", "required"),
+             ("per_query", "per-query W/L/T")],
+        ),
+        "quality_findings": "\n".join(
+            f"- {f}" for f in benchmarks["retrieval_quality"]["findings"]
+        ),
+        "quality_not_shown": benchmarks["retrieval_quality"]["what_this_does_not_show"],
+
         "scope_no_labels": benchmarks["scope_limits"]["no_relevance_labels"],
+        "scope_underpowered": benchmarks["scope_limits"]["quality_evidence_is_underpowered"],
         "scope_no_quality": benchmarks["scope_limits"]["no_quality_measurement"],
         "scope_advisory_reach": benchmarks["scope_limits"]["advisory_reach_bounds_evaluation"],
         "scope_graph_underpowered": benchmarks["scope_limits"]["graph_decision_is_underpowered"],
