@@ -117,7 +117,7 @@
         "reordered": "2"
       }
     ],
-    "finding": "Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees."
+    "finding": "Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees. CORRECTED 2026-08-08: 'graph parameters are live but weak' understated it. That probe nudged a parameter; ablating the signal entirely changes 2 of 23 queries and never above rank 19. The graph layer is inert, not weak. See graph_contribution."
   },
   "length_normalisation": {
     "producer": "python3 tools/measure_length_norm.py --index index.db",
@@ -154,7 +154,7 @@
     "oov_yields_nothing": "An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one.",
     "no_quality_measurement": "What M1 proves is reproducibility and subordination. Recall, nDCG and MRR need labels. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.",
     "advisory_reach_bounds_evaluation": "Measured: |D| runs 0 to 147 across the 23-query set, so the depth at which the advisory layer can act at all is a property of the query, not of the corpus. A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off.",
-    "graph_decision_is_underpowered": "Only 2 of 23 queries reorder under any graph setting, and one of those is a synthetic 13-term edge case. 'Does the graph layer earn its place?' therefore has a real sample size of one and cannot be settled by labelling; it needs more queries, not more labels.",
+    "graph_decision_is_underpowered": "SUPERSEDED 2026-08-08. The graph question was thought to need labels and to be stuck at a sample size of one. It was neither: ablation plus nuisance screening settle it with no labels at all. See graph_contribution. The lesson kept: 'needs labels' was an assumption, not a measurement, and it deferred an answerable question through an entire milestone.",
     "quality_evidence_is_underpowered": "7 queries with 1-7 candidates each. The per-query record against a relevance-blind control is 3 wins / 3 losses / 1 tie. Any aggregate quality figure from this label set is dominated by single-query variation and must not be quoted as a system property."
   },
   "advisory_horizon": {
@@ -257,5 +257,37 @@
       "self_correction": "The figures recorded above (system nDCG 0.9064, margin +0.0303) are quoted to four decimals on a sample whose resolution is 0.143. That is spurious precision. They are the arithmetic the producer emits and are kept for reproducibility, but the DIFFERENCE between system and control is not resolvable at this sample size and must not be read as one.",
       "why_it_matters": "The declared-margin FAIL and this verdict say different things. The margin test says the system did not clear the bar. This says the sample could not have told us either way. Both are recorded because reporting only the first would imply the evidence was capable of a verdict."
     }
+  },
+  "graph_contribution": {
+    "producer": "python3 tools/measure_graph_contribution.py --index index.db",
+    "measured": "2026-08-08",
+    "question": "Does the graph layer earn its place in the sort key? Deferred through all of M1 as needing labels. It does not need them.",
+    "ablation": {
+      "what": "The graph signal withheld entirely - the depth map is not passed - leaving the sort key and the injective tiebreak chain byte-identical, so the comparison isolates the signal.",
+      "queries": 23,
+      "queries_whose_output_changes": 2,
+      "which": "q02 (|D|=86, first difference at rank 20) and e06 (|D|=147, first difference at rank 61). e06 is a synthetic 13-term edge case.",
+      "shallowest_rank_ever_affected": 20,
+      "candidate_set_ever_changes": false
+    },
+    "layer_2_redundancy": {
+      "verdict": "REDUNDANT",
+      "rho_mean_all_queries": 0.8256,
+      "rho_mean_non_empty": 0.9441,
+      "queries_rank_identical": "17 of 20 non-empty; the other three are q02, e06, and q08 where |D|=1 leaves rank correlation undefined",
+      "caveat": "PARTLY STRUCTURAL. The graph layer is a tiebreak: it annotates depth on BM25 candidates and cannot introduce a document, so complementarity is 0 by construction rather than by measurement. Layer 2's verdict is directionally right but tautological for this class of signal. The ablation is the load-bearing evidence."
+    },
+    "layer_3_nuisance": {
+      "verdict": "CLEAN",
+      "nuisance": "node degree (incident edges, undirected; 266 nodes, max 27, mean 4.16)",
+      "rho": -0.0417,
+      "moved_items": 61,
+      "promoted_degree_ratio": 0.5087,
+      "meaning": "The graph layer is NOT ranking by connectivity. The promoted items carry roughly half the corpus-average degree - the opposite of the feared signature. This rules out the parent-boost pathology that motivated mud-detection: a signal that propagates score along edges and learns to promote well-connected items rather than relevant ones. Ruled out without any evaluation run and without any label."
+    },
+    "finding": "As positioned in the sort key, the graph layer is INERT above rank 19 across the entire query set. It is not harmful and not degree-riding - it simply changes nothing a user sees. At evaluation depths 1, 5 and 10 its contribution is exactly zero on all 23 queries; at depth 20 it affects one real query.",
+    "why_it_is_inert_and_why_that_is_structural": "best_depth is the FOURTH component of the sort key, after bm25_q and matched_terms. It breaks only ties that survive both, and those are rare above rank 19 on this corpus. Promoting it up the key would let graph proximity override a strictly better lexical match, which the architecture forbids by design. So the layer cannot be made influential without abandoning the ordering principle - its inertness is a consequence of the guarantee, not a tuning failure.",
+    "correction_to_an_earlier_measurement": "M1.6 recorded 'graph parameters are live but weak' from a sensitivity probe that nudged graph.max_depth 2->3. That measured a nudge, not the layer. Ablation is the experiment the question actually asked, and a signal can be insensitive to its parameters while doing a great deal of work - or, as here, none.",
+    "attribution": "Layers 2 and 3 are from mud-detection (github.com/verbalogicproject-creator/NLKE-mud-detection, Apache-2.0). drf takes NO dependency on it: tools/measure_graph_contribution.py degrades to the ablation alone if it is absent, and nothing is vendored."
   }
 }

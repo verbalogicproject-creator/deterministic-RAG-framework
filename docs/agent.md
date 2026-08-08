@@ -8,7 +8,7 @@
 Read this before changing anything. It states what is enforced, what will raise,
 and which assumptions are already measured so you do not re-derive them.
 
-**Spec hash** `fe40d6b09a675ff68f95959c4936837d126c7819d6093ee23a78335ee8862602` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
+**Spec hash** `033060b7534a8b1cb2e8ec26ca34c0302b2026c57825635dc88876874e3936eb` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`
 
 ## Verified facts — do not re-measure, do not assume otherwise
@@ -79,7 +79,7 @@ influencing ranking.
 
 ## Known-weak signals — do not overstate these
 
-Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees.
+Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees. CORRECTED 2026-08-08: 'graph parameters are live but weak' understated it. That probe nudged a parameter; ablating the signal entirely changes 2 of 23 queries and never above rank 19. The graph layer is inert, not weak. See graph_contribution.
 
 | setting | default | probe | queries reordered |
 |---|---|---|---|

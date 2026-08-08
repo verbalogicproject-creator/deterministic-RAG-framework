@@ -1,7 +1,7 @@
 # Project State — resume here
 
-**Last checkpoint:** M2.1 measured (**FAIL**), then a full structural-integrity audit. 252 tests, 24 falsifiers, isolation clean (2026-08-08). Released `v0.0.7`.
-**Next:** M2.2 — expand the query set, and adopt `mud_detection` as the verdict layer (see below).
+**Last checkpoint:** M2.2 opened — **the graph question is settled, with no labels.** The graph layer is *inert*, not weak. 252 tests, isolation clean (2026-08-08). Released `v0.0.8`.
+**Next:** decide what to do about the graph layer (three options in the M2.2 section), then expand the query set.
 **Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
@@ -544,6 +544,64 @@ Both had premises that expired the moment labels existed:
 ### ➡️ M2.2 is re-scoped again: expand the query set first
 
 More labels on these 7 queries will not resolve a 3–3 split; the variance is between queries, not within them. M2.2 leads with **query-set expansion** — which also unblocks the graph decision, still stuck at a real sample size of one.
+
+---
+
+## M2.2 ✅ (first question) — does the graph layer earn its place? **No.**
+
+Producer: `python3 tools/measure_graph_contribution.py --index index.db`
+
+Deferred through all of M1 as *"needs relevance labels"*. **It never did.** Two label-free measurements settle it.
+
+### 1. Ablation ≠ parameter sensitivity — and M1.6 measured the wrong one
+
+M1.6 nudged `graph.max_depth` 2→3, saw 2/23 queries reorder, and recorded *"live but weak"*. **That measured a nudge, not the layer.** Withholding the signal entirely is the experiment the question actually asked:
+
+```
+queries whose output changes    2/23
+shallowest rank ever affected   20
+candidate set ever changes      False   (a tiebreak cannot add documents)
+  q02  |D|= 86  first difference at rank 20
+  e06  |D|=147  first difference at rank 61   (synthetic 13-term edge case)
+```
+
+**The graph layer is inert above rank 19 across the entire query set.** At evaluation depths 1, 5 and 10 its contribution is *exactly zero* on all 23 queries. At depth 20 it moves one real query. A signal can be insensitive to its parameters while doing a great deal of work — or, as here, none.
+
+### 2. Nuisance screen (mud-detection layer 3): **CLEAN**
+
+The feared pathology — the one that motivated mud-detection — is a signal that propagates score along edges and learns to promote **well-connected** items rather than relevant ones. `best_depth` is structurally that shape.
+
+```
+rho vs node degree        -0.0417   over 61 moved items
+promoted/corpus degree     0.51x    (promoted items are LESS connected than average)
+verdict                    CLEAN
+```
+
+**Ruled out, with no evaluation run and no label.** The graph layer is not degree-riding. It is simply silent.
+
+### Why this is structural, not a tuning failure
+
+`best_depth` is the **fourth** component of the sort key, after `bm25_q` and `matched_terms`. It breaks only ties surviving both, and those are rare above rank 19 here. Moving it up the key would let graph proximity override a strictly better lexical match — **which the architecture forbids by design**. So the layer cannot be made influential without abandoning the ordering principle. Its inertness is a *consequence of the guarantee*.
+
+### ⚠️ Layer 2 (REDUNDANT) is partly tautological — do not lean on it
+
+`correlate.assess` returned REDUNDANT with `complementarity = 0.0`. But the graph layer is a **tiebreak**: it annotates depth on BM25 candidates and *cannot* introduce a document, so complementarity is 0 **by construction**. Verified directly (`set(base) == set(candidate)` on every query). Also `rho_mean = 0.826` is contaminated by three empty-|D| queries scoring 0.0; over non-empty queries it is **0.9441**, with **17 of 20 rank-identical**. Directionally right, but the ablation is the load-bearing evidence.
+
+### The decision this opens
+
+Three options, none of which I have taken:
+
+| option | cost | argument |
+|---|---|---|
+| **Keep, documented as inert** | BFS on every query, 0.149 ms | Cheap, and a larger corpus may make it matter |
+| **Remove** | Simplifies the sort key to 4 components | It buys nothing measurable and `graph.expand` is real code with real tests |
+| **Keep and re-scope** | New work | Use graph signal for *candidate generation* (documents with no matching term) rather than tie-breaking — an M2 decision already on record |
+
+Removal changes `bench_digest` and the architecture, so it is not mine to take.
+
+### On adopting mud-detection
+
+`mud_detection` used for layers 2–3; **nothing vendored, no dependency added.** `tools/measure_graph_contribution.py` degrades to the ablation alone if the package is absent (verified). `declared_core`/`sqlite3_sag` deliberately **not** used — `declared_core/retrieval/fusion.py` blends signals into one score, which drf rejects outright.
 
 ---
 

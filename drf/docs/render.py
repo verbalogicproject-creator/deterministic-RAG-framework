@@ -186,6 +186,15 @@ def build_context(index_path: str | None = None) -> dict:
         "horizon_second_finding": benchmarks["advisory_horizon"]["second_finding"],
         "horizon_why_m2": benchmarks["advisory_horizon"]["why_it_matters_for_M2"],
 
+        "graph_contrib_producer": benchmarks["graph_contribution"]["producer"],
+        "graph_contrib_changed": benchmarks["graph_contribution"]["ablation"]["queries_whose_output_changes"],
+        "graph_contrib_queries": benchmarks["graph_contribution"]["ablation"]["queries"],
+        "graph_contrib_shallowest": benchmarks["graph_contribution"]["ablation"]["shallowest_rank_ever_affected"],
+        "graph_contrib_finding": benchmarks["graph_contribution"]["finding"],
+        "graph_contrib_structural": benchmarks["graph_contribution"]["why_it_is_inert_and_why_that_is_structural"],
+        "graph_contrib_nuisance": benchmarks["graph_contribution"]["layer_3_nuisance"]["meaning"],
+        "graph_contrib_correction": benchmarks["graph_contribution"]["correction_to_an_earlier_measurement"],
+
         "quality_producer": benchmarks["retrieval_quality"]["producer"],
         "quality_verdict": benchmarks["retrieval_quality"]["verdict"],
         "quality_annotator": benchmarks["retrieval_quality"]["annotator"],

@@ -9,7 +9,7 @@ A retrieval framework whose ranking path contains no model. A neural layer may
 be attached under a mechanically enforced guarantee that it can never change an
 authoritative result — only append below it.
 
-**Spec hash** `fe40d6b09a675ff68f95959c4936837d126c7819d6093ee23a78335ee8862602`
+**Spec hash** `033060b7534a8b1cb2e8ec26ca34c0302b2026c57825635dc88876874e3936eb`
 **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`, manifest `1`
 
@@ -30,7 +30,7 @@ Four further limits, recorded rather than discovered later:
 - Candidate generation has no truncation and degrades at scale. FTS5 with a mandatory ORDER BY rank plus deterministic pagination is the milestone 3 path.
 - An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one.
 - Measured: |D| runs 0 to 147 across the 23-query set, so the depth at which the advisory layer can act at all is a property of the query, not of the corpus. A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off.
-- Only 2 of 23 queries reorder under any graph setting, and one of those is a synthetic 13-term edge case. 'Does the graph layer earn its place?' therefore has a real sample size of one and cannot be settled by labelling; it needs more queries, not more labels.
+- SUPERSEDED 2026-08-08. The graph question was thought to need labels and to be stuck at a sample size of one. It was neither: ablation plus nuisance screening settle it with no labels at all. See graph_contribution. The lesson kept: 'needs labels' was an assumption, not a measurement, and it deferred an answerable question through an entire milestone.
 
 ---
 
@@ -172,6 +172,20 @@ A reachable horizon is necessary but not sufficient. The three out-of-vocabulary
 
 A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off. Reporting that as a finding about neural retrieval would be a category error, and measuring the horizon first is what makes the error visible in advance.
 
+### Does the graph layer earn its place? — `python3 tools/measure_graph_contribution.py --index index.db`
+
+Withholding the graph signal entirely changes the output of
+**2 of 23** queries, and never above
+rank **20**.
+
+As positioned in the sort key, the graph layer is INERT above rank 19 across the entire query set. It is not harmful and not degree-riding - it simply changes nothing a user sees. At evaluation depths 1, 5 and 10 its contribution is exactly zero on all 23 queries; at depth 20 it affects one real query.
+
+best_depth is the FOURTH component of the sort key, after bm25_q and matched_terms. It breaks only ties that survive both, and those are rare above rank 19 on this corpus. Promoting it up the key would let graph proximity override a strictly better lexical match, which the architecture forbids by design. So the layer cannot be made influential without abandoning the ordering principle - its inertness is a consequence of the guarantee, not a tuning failure.
+
+**Nuisance screen.** The graph layer is NOT ranking by connectivity. The promoted items carry roughly half the corpus-average degree - the opposite of the feared signature. This rules out the parent-boost pathology that motivated mud-detection: a signal that propagates score along edges and learns to promote well-connected items rather than relevant ones. Ruled out without any evaluation run and without any label.
+
+**Correction on record.** M1.6 recorded 'graph parameters are live but weak' from a sensitivity probe that nudged graph.max_depth 2->3. That measured a nudge, not the layer. Ablation is the experiment the question actually asked, and a signal can be insensitive to its parameters while doing a great deal of work - or, as here, none.
+
 ### Retrieval quality — `python3 tools/drf eval quality --index index.db`
 
 49 judgements over 7 queries,
@@ -208,7 +222,7 @@ in `spec/config_schema.json`:
 | graph.max_depth | 2 | 3 | 2 |
 | graph.seed_count | 10 | 20 | 2 |
 
-Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees.
+Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees. CORRECTED 2026-08-08: 'graph parameters are live but weak' understated it. That probe nudged a parameter; ablating the signal entirely changes 2 of 23 queries and never above rank 19. The graph layer is inert, not weak. See graph_contribution.
 
 ## Falsifiers
 
