@@ -1,7 +1,7 @@
 # Deterministic RAG — Progress Report & Source of Truth
 
-**Date:** 2026-08-07
-**Status:** M1.0 complete (23/23 tests green). Framework scaffolded at `~/Documents/Deterministic-RAG-Framework/`.
+**Created:** 2026-08-07 · **Updated:** 2026-08-08 (filename keeps the creation date; it is referenced elsewhere)
+**Status:** **Milestone 1 complete and published. M2.0 complete; M2.1 in progress.** 245 tests, 24 falsifiers, all files pass in isolation. Released `v0.0.4` at <https://github.com/verbalogicproject-creator/deterministic-RAG-framework>.
 **Purpose:** Persistent system atlas, plan, and context. This document supersedes any claim made in the recovered source project's own documentation.
 
 > **Reading order for a fresh session:** this file → `STATE.md` (resume point) → `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` (full build plan).
@@ -18,7 +18,13 @@ A body of research from Nov–Dec 2025, believed lost, was recovered and audited
 
 The response is a clean framework that keeps the architecture and the knowledge graph, discards the code, and — critically — encodes the anti-drift discipline into machinery rather than intent.
 
-**Current position:** foundational contract layer built and proven. The enforcement is real: a mislabelled "deterministic" action raises on its second call; advisory data physically cannot be unwrapped outside one allowlisted module.
+**Current position (2026-08-08).** Milestone 1 is complete and published. The enforcement is real and running: a mislabelled "deterministic" action raises on its second call; advisory data physically cannot be unwrapped outside one allowlisted module; `merge()` re-checks subordination on every query in production, not only under test.
+
+Reproducibility is measured at **28 cells / 1 distinct digest / 0 discordant pairs**, validated against a chaos control — the prior engine's ranking, reproduced exactly — scoring **5 digests / 3,931 discordant pairs**. Without that control the perfect scores would be compatible with a harness that measured nothing.
+
+M2.0 built the **quality instrument before the labels**, so that "is the harness right?" and "is the system good?" are not the same experiment. It can be checked today three ways: a hand-computed nDCG reference, properties true of any label set, and the advisory horizon, which needs no labels at all.
+
+**No claim is made about retrieval quality, and no such figure exists in the repository.** M2.1 supplies the judgements; the worksheet is generated and outstanding.
 
 ---
 
@@ -316,33 +322,60 @@ Two consequences: exact ties within D **cannot occur** (so neural tie-breaking i
 
 | Step | Deliverable | Proves | Status |
 |---|---|---|---|
-| **M1.0** | `hashing` `fixed` `contract` `spec/actions.json` | Hash stable across `PYTHONHASHSEED`; mislabelled action raises; advisory firewall holds; spec↔code bijection | ✅ **DONE** 23/23 |
-| **M1.1** | `store.py`, `ingest/*`, `drf build` | Two builds → identical `content_hash`; counts via `len()` match `SELECT count(*)`; 48 dup edge groups collapse; 4 orphans in `manifest.dropped`; zero `AUTOINCREMENT`, zero `CURRENT_TIMESTAMP` | ⬜ **NEXT** |
-| **M1.2** | `tokenize` `bm25` `lexical` | BM25 matches hand-computed reference **incl. length normalisation**; `len(candidates) == len(posting_union)`; all scores `int` | ⬜ |
-| **M1.3** | `graph.py`, `stage1.py` | **`len(set(sort_keys)) == len(D)`** (injectivity); 50 shuffles → byte-identical; `seed_count` change is live | ⬜ |
-| **M1.4** | `neural` `providers` `merge` | **Centerpiece.** Subordination vs adversarial/crashing/hanging/flood; `discordant_pairs == 0` | ⬜ |
-| **M1.5** | `config/*` | `content_hash` ignores display keys; ill-typed key rejected; snapshot binds to manifest | ⬜ |
-| **M1.6** | `bench/*`, query set | ReproRAG suite × 5 runs × 3 subprocesses × 3 hash seeds × 2 builds; every knob proven live | ⬜ |
-| **M1.7** | `docs/render.py` | Zero unresolved placeholders; **hand-edit fails the test** | ⬜ |
-| **M1.8** | Freeze | Tag with `spec_sha` + manifest hash + bench sha | ⬜ |
+| **M1.0** | `hashing` `fixed` `contract` `spec/actions.json` | Hash stable across `PYTHONHASHSEED`; mislabelled action raises; advisory firewall holds; spec↔code bijection | ✅ |
+| **M1.1** | `store.py`, `ingest/*`, `drf build` | Two builds → identical `content_hash`; 48 dup edge groups collapsed; 4 orphans in `manifest.dropped`; zero `AUTOINCREMENT` | ✅ |
+| **M1.2** | `tokenize` `bm25` `lexical` | BM25 matches a hand-computed reference incl. length normalisation; `len(candidates) == len(posting_union)`; all scores `int` | ✅ |
+| **M1.3** | `graph.py`, `stage1.py` | `len(set(sort_keys)) == len(D)` (injectivity); 50 shuffles → byte-identical | ✅ |
+| **M1.4** | `neural` `providers` `merge` | **Centerpiece.** Subordination vs adversarial/crashing/hanging/flood; `discordant_pairs == 0` | ✅ |
+| **M1.5** | `config/*` | `content_hash` ignores display keys; ill-typed key rejected; snapshot binds to manifest | ✅ |
+| **M1.6** | `bench/*`, query set | 28 cells → 1 digest; chaos control → 5 digests, 3,931 discordant; every knob proven live | ✅ |
+| **M1.7** | `docs/render.py` | Zero unresolved placeholders; hand-edit fails the test | ✅ |
+| **M1.8** | Freeze | `spec_sha` + manifest hash + bench digest bound to a tag | ✅ |
+| **M2.0** | `bench/{quality,controls,labels,evaluate}`, `spec/evaluation.json`, `drf eval` | Hand-computed nDCG reference; oracle dominance and permutation invariance on *any* labels; the advisory horizon | ✅ |
+| **M2.1** | Relevance judgements | 49 graded pairs (stratum A) turn three guesses into three measurements | ⬜ **NEXT** — worksheet generated, judgements outstanding |
+| **M2.2** | Query-set expansion, then the three deferred decisions | weighted `s1_q`; graph-only candidates in D; does the graph layer earn its place | ⬜ |
+| **M2.3** | BGE re-embedding, compared against labels | ReproRAG: embedding choice dominates variance, so switch *after* labels exist | ⬜ |
+| **M2.4** | Remote provider | Cut from M1 by measurement; needs M2.3 | ⬜ |
+
+**M1.3 must precede M1.4** — subordination is only meaningful against an already-total order. **M2.0 must precede M2.1** for the same reason in a different register: an instrument validated on the data it is about to judge cannot be distinguished from the judgement.
+
+### ⚠️ M2.2 was re-scoped by measurement
+
+"Does the graph layer earn its place?" cannot be settled by labelling. Only **2 of 23** queries reorder under any graph setting, and one of those is a synthetic 13-term edge case — a real sample size of **one**. It needs **more queries**, chosen to stress graph structure, before any judgement is worth making. That is why query-set expansion now leads M2.2 rather than following it.
 
 **M1.3 must precede M1.4** — subordination is only meaningful against an already-total order.
 
 ## Built so far
 
 ```
-drf/version.py    version constants participating in hashing
-drf/hashing.py    canonical_json, sha256_value, content_id, node_id, edge_id
-drf/fixed.py      exact_sum, quantize/unquantize, qmul  (QUANTUM_EXP = 9)
-drf/contract.py   @action, Justification, ActionOutput/Result, Advisory[T],
-                  ACTIONS registry, replay check, strict_replay, Trace
-spec/actions.json 10 actions × determinism × authority, with evidence
-tests/test_contract.py   23 tests green
+drf/version.py     version constants participating in hashing
+drf/hashing.py     canonical_json, sha256_value, content_id, node_id, edge_id
+drf/fixed.py       exact_sum, quantize/unquantize, qmul  (QUANTUM_EXP = 9)
+drf/contract.py    @action, Justification, ActionOutput, Advisory[T], registry,
+                   replay check, Trace
+drf/store.py       7 tables, all WITHOUT ROWID; bidirectional neighbours()
+drf/ingest/        source_kg, normalize (conflict-free edge collapse), build, manifest
+drf/retrieval/     tokenize, bm25, lexical, graph, stage1 (injective sort key),
+                   neural, merge (runtime subordination postcondition),
+                   providers/{base,null,stored_vectors}
+drf/config/        78 settings, DB-backed snapshots, structural diff
+drf/bench/         metrics (ReproRAG), repro (matrix + chaos control + sensitivity),
+                   quality, controls, labels, evaluate          <- M2.0
+drf/docs/          render.py + 5 templates; Template.substitute, never safe_
+drf/freeze.py      spec_sha + manifest_hash + bench_digest bound to a release
+spec/              actions, invariants (24), ranking, config_schema, benchmarks,
+                   evaluation, frozen
+tools/             drf (build/verify/query/bench/eval/docs/freeze/inspect),
+                   make_labelling_worksheet, labels_collect, measure_length_norm,
+                   check_isolation.sh
+tests/             245 tests across 11 files; 24 registered falsifiers
 ```
 
 ## Scope decisions
 
-**Reversed after measurement:** `RemoteHTTPProvider` was slated to be cut. The endpoint proved live, fast, and deterministic, and re-embedding 266 nodes costs ~30 s — so `drf embed --provider bge` is **in** for M1. It remains advisory.
+**Correction (2026-08-08).** This section previously read *"`RemoteHTTPProvider` … is **in** for M1"*, reversing the original decision to cut it. **That did not happen and the sentence was wrong.** M1 shipped `null` and `stored_vectors` only; there is no `remote_http.py` and no `drf embed`. The code recorded the truth all along — `tests/test_ingest.py:576` carries `neural.encode_query_remote` as an explicit spec↔code bijection exemption with the reason attached — so the drift was confined to this document, which is precisely the failure mode it exists to catch. Logged in the corrections appendix.
+
+The measurement that prompted the reversal still stands (endpoint live, deterministic, ~30 s to re-embed 266 nodes), but the work belongs to **M2.3/M2.4**: BGE is 1024-d against the corpus's 384-d MiniLM, so a remote provider requires re-embedding first, and ReproRAG's finding that embedding choice dominates variance means the switch cannot be *evaluated* until labels exist. It remains advisory either way.
 
 **Never cut:** content-addressed node IDs (they *are* the tiebreak key), the injective 6-tuple sort key, `merge()`'s runtime postcondition, `AdversarialProvider` and its test. Those four are milestone 1.
 
@@ -354,11 +387,14 @@ tests/test_contract.py   23 tests green
 
 1. **No number without a producer.** Every metric maps to the script that emits it; CI regenerates. If no script can produce it, it is a hypothesis and is labelled one.
 2. **Counts derived, never asserted.** `len()`, not a hand-written integer.
-3. **Assert exact integers, never floats.** `discordant_pairs == 0`, not `tau == 1.000`. Report floats for humans; assert on integers.
+3. **Assert exact integers, report floats.** `discordant_pairs == 0`, not `tau == 1.000`. The measured reason: the chaos control scored Kendall's Tau **0.9761** and RBO **0.9942** while being provably non-deterministic — rounded for a report, those read as correct.
+   **Amended 2026-08-08 for M2.** nDCG and recall are ratios and cannot be integers, so the rule keeps its *shape* rather than its letter: assert rank positions and counts of relevant documents (both integers), report the ratio, and claim an improvement only against a control by a margin **declared in advance**. `spec/evaluation.json` fixes that margin at 0.05, dated before any judgement existed.
 4. **Docs generated from `spec/`, never hand-written.** A hand-edit must fail a test.
 5. **Don't assert byte-identical `.db` files** — SQLite's header change counter makes that fragile. Assert manifest `content_hash` + canonical export.
-6. **Scope honesty in every claim.** M1 has **no relevance labels** and therefore makes **no claim about retrieval quality**. An unqualified "all metrics 1.0" would be exactly the drift this project exists to prevent.
-7. **Verify before claiming — including my own claims.** See the corrections log.
+6. **Scope honesty in every claim.** There are still **no relevance labels**, so **no claim is made about retrieval quality**. An unqualified "all metrics 1.0" would be exactly the drift this project exists to prevent. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
+7. **A set metric cannot see ordering.** Measured: Jaccard reported **1.0000** for a pipeline returning five different orderings in five runs. Never report recall alone.
+8. **Every checkpoint carries a falsifier**, registered *before* the test is trusted — a mutation under which that test must fail. Falsifiers are blind to order-dependent tests, so `./tools/check_isolation.sh` runs every file alone; a full `pytest` run cannot find those by definition.
+9. **Verify before claiming — including my own claims.** See the corrections log.
 
 ---
 
@@ -375,6 +411,26 @@ Claims that failed verification during this session. Kept because the failure mo
 | "`SEMANTIC-DIMENSIONS-REFERENCE.md`'s 50 dims may be an extraction artifact" | **Me**, hedging | **Verified correct** — it really is a different vocabulary sharing only 10 names. |
 | "The production generator uses the `fresh/` 50-dim set" | **Me**, hypothesis | **False** — it's a 100% subset of the canonical 56. Checking paid off. |
 | Corpus is 1051 modules / 13,946 functions | **Me**, first measurement | **Contaminated** — 856 of 1023 unique files were `venv/` third-party code. Re-scoped to 167 project modules; kept venv as a *separate* second corpus, which strengthened the result. |
+
+### Added 2026-08-08 — during M1.1 → M2.1
+
+| Claim | Source | Outcome |
+|---|---|---|
+| "26.2% discordance; top-1 changed 9 of 15 queries" (length normalisation) | **Me**, M1.2 | **Withdrawn.** Both figures depended on an unstated tiebreak — lowest node id gives 9, highest gives 4. They described BM25 plus an arbitrary convention. Restated over strictly-ordered comparisons only: **17.0%** (60 of 352 pairs), 3/15 disjoint top-sets, 7/15 with ties. The *directional* claim (9 longer / 0 shorter) survived unchanged. |
+| "RBO 0.716 for the real pipeline" | **Me**, M1.6 | **The metric was broken.** Un-normalised RBO scored **0.716 for byte-identical lists** against 0.712 for the deliberately broken control — it could not separate perfect agreement from 3,931 discordant pairs. Fixed by normalising by `1 - p**depth`. It would have been quoted as evidence. |
+| `assert rbo == 1.0` | **Me**, immediately after the above | **An exact float assertion — the one thing this project forbids.** Failed in both directions (`1.0000000000000002`, `0.9999999999999998`). Replaced with the integer surface plus `round(rbo, 9)`. |
+| "605 = 557 survivors + 48 collapsed + 4 dropped" | **Me**, M1.1 | **Arithmetic slip** (= 609). Correct: 605 = **553** + 48 + 4. Never reached a file. |
+| `test_dangling_edges_were_not_silently_repaired` | **Me**, M1.1 | **Logically vacuous.** It derived its "dropped" set from the manifest; under repair nothing is dropped, so the set is empty and disjoint from everything. It could never detect the thing it was named for. Now derives dangling pairs from the *source*. |
+| The hash-seed falsifier | **Me**, M1.1 | **A no-op.** The corpus has one embedding model and one dimension, so `list(set) == sorted(set)` regardless. Retargeted at node types (25 values). |
+| `config_hash_covers_ranking` falsifier | **Me**, M1.5 | **Did not fire.** It removed `ranking.b` from the hash *and* from the list the test iterated, so the test never examined the broken key. Lesson recorded: a falsifier must damage the thing under test **without narrowing what the test looks at**. |
+| `_import_all_action_modules()` | **Me**, M1.6 | **Order-dependent.** It hand-listed 5 modules and went stale when M1.4 added `drf.retrieval.neural`; it measured which test modules happened to be collected. Fixed structurally with `pkgutil.walk_packages`, and `check_isolation.sh` added — falsifiers are blind to this class. |
+| Two implementations of `spec_sha` | **Me**, M1.7 | **Disagreed.** `render.py` globbed all `spec/*.json` including `frozen.json`, which contains the hash. `render.py` now delegates to `freeze.spec_sha()`. |
+| An isolation failure seen once | **Me**, M1.8 | **Evidence destroyed** by piping through `\| tail -3`. Unreproduced across 5 later runs. Recorded as **unexplained, not resolved**; the script now logs to a file. |
+| `test_shallow_depths_are_structurally_unreachable` | **Me**, M2.0 | **Asserted the wrong thing.** It assumed a corpus-wide bound; `|D|` is per query and 7 of 23 fall below depth 5. The failure produced a better finding than the test would have — that advisory reach is inverse to lexical success. |
+| `test_no_quality_figure_is_published` | **Me**, M2.0 | **False positive on its own prose.** A substring scan matched the spec's worked example explaining why `nDCG@10 = 0.71` is not evidence. Now walks the JSON for a metric name **bound to a number** — prose is where explanation lives, a key bound to a number is where a claim lives. |
+| "`RemoteHTTPProvider` is **in** for M1" | **This document**, §Scope decisions | **False, and it sat here for a day.** M1 shipped `null` and `stored_vectors` only. The code was right the whole time — `tests/test_ingest.py:576` records the exemption with its reason. Documentation drift inside the anti-drift project's own source of truth, found only by checking the claim against the filesystem while updating this file. Corrected above. |
+
+**What the pattern says.** Eleven of these thirteen are my own errors, and every one was **green, passing, or plausible beforehand**. Three distinct modes of test vacuity account for most of them — *logical* (satisfied for the wrong reason), *constructive* (holds by construction, cannot fail), and *environmental* (correct in one execution context, meaningless in another). Falsifiers catch the first two. Only running each file alone catches the third.
 
 ---
 

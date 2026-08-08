@@ -45,6 +45,12 @@ grants authority. Rank fusion (RRF) is rejected, not merely unused.
 Diff the last two. The authoritative block is identical, character for
 character. That is the promise, and it takes about ten seconds to check.
 
+```bash
+./tools/drf bench all --index index.db     # reproducibility, control, sensitivity
+./tools/drf eval invariance --index index.db   # where the neural layer can act
+./tools/drf verify --index index.db
+```
+
 ## What is proven
 
 | claim | evidence |
@@ -52,15 +58,33 @@ character. That is the promise, and it takes about ten seconds to check.
 | Same question, same answer | $repro_cells cells — repeats, subprocesses, hash seeds, two independent builds — **$repro_digests** distinct digest, **$repro_discordant** discordant pairs |
 | The tests can detect failure | The same suite against the engine this replaced: **5** different answers to one question in 5 runs |
 | The neural layer cannot interfere | 8 providers including crashing, hanging, flooding, and one actively trying to promote itself |
+| The guarantee holds on real queries | Authoritative prefix identical with the provider on and off, **$horizon_identical** of $horizon_queries queries |
 | Documentation cannot drift | Every doc is generated from `spec/`; a hand edit fails the suite |
 
 $invariant_count checkpoint tests each carry a **falsifier** — a mutation under
 which that test must fail. A test that survives its own falsifier cannot fail,
 and a test that cannot fail proves nothing.
 
+## Where the neural layer can act — and where it provably cannot
+
+`$horizon_producer`
+
+Merge is append-only, so everything above `|D|` is identical whatever the
+provider does. Measured across $horizon_queries queries, `|D|` runs from
+**$horizon_min to $horizon_max** — the bound is a property of the *query*.
+
+$horizon_finding
+
+$horizon_second_finding
+
+This is the guarantee working, not a weakness. It is stated here because it
+also bounds what any future evaluation can show: $horizon_why_m2
+
 ## What is NOT proven
 
 $scope_no_labels
+
+$scope_no_quality
 
 $scope_toy
 
@@ -83,13 +107,29 @@ Four audiences, all generated from `spec/*.json` and a built index:
 1. **No number without a producer.** Counts come from `len()`, never memory.
    Every figure quoted lives in `spec/benchmarks.json` beside the command that
    emits it.
-2. **Assert exact integers, never floats.** Measured reason: the broken control
+2. **Assert exact integers, report floats.** Measured reason: the broken control
    scores Kendall's Tau 0.9761 and RBO 0.9942 while being provably
-   non-deterministic. Rounded, those read as correct.
+   non-deterministic. Rounded, those read as correct. Where a metric is a ratio
+   and *cannot* be an integer — nDCG, recall — the rule keeps its shape rather
+   than its letter: rank positions and counts are asserted, the ratio is
+   reported, and no improvement may be claimed except against a control by a
+   margin stated in advance.
 3. **Prefer commutativity to pinned order.** If something is reproducible only
    because it was sorted first, find the formulation where order cannot matter.
 4. **Every checkpoint needs a falsifier**, registered before the test is
    trusted.
+
+## Status
+
+Milestone 1 is complete: the deterministic path, the subordination guarantee,
+the reproducibility suite and its control, generated documentation, and a
+freeze that binds a release to an exact spec, index and result set.
+
+Milestone 2 is measuring quality, and its first step was the **instrument**.
+`spec/evaluation.json` declares the metrics, the relevance scale, the controls
+and the required margin — all dated before any judgement existed, because a
+threshold chosen after seeing the number it must pass is not a threshold. The
+next step is the judgements themselves; see `queries/LABELLING.md`.
 
 ## Origin
 

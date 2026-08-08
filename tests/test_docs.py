@@ -189,8 +189,17 @@ def test_peer_and_plain_docs_state_the_scope_limit(context):
     rendered into the documents rather than left to a reader's inference.
     """
     rendered = render_all(context)
-    assert "no relevance" in rendered["peer"].lower()
-    assert "NO claim about retrieval quality" in rendered["peer"]
+    peer = rendered["peer"].lower()
+
+    # Matched on words rather than a contiguous sentence, for the reason given
+    # below - and for a second reason found later: the original assertion
+    # required the exact string "NO claim about retrieval quality", so
+    # rewording the limit to "NO claim is made about retrieval quality" failed
+    # a test whose subject had not changed. A test that forces prose to be
+    # written around it stops guarding meaning and starts guarding phrasing.
+    assert "no relevance" in peer
+    assert "no claim" in peer
+    assert "retrieval quality" in peer
 
     # Markdown emphasis can split a phrase ("does **not** claim"), so match on
     # words rather than on a contiguous sentence - the first version of this

@@ -9,7 +9,7 @@ A retrieval framework whose ranking path contains no model. A neural layer may
 be attached under a mechanically enforced guarantee that it can never change an
 authoritative result — only append below it.
 
-**Spec hash** `2576b96ccc5b0eb89e939cd7dd7f86d1a44a2991d17dabb43197443a216c58b1`
+**Spec hash** `c747755c9fde2d000f11a4b61eab9311dd138937cc3898344a2f1b54ea192a80`
 **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`, manifest `1`
 
@@ -17,14 +17,18 @@ authoritative result — only append below it.
 
 ## Scope, stated before the results
 
-Milestone 1 carries no relevance judgements and makes NO claim about retrieval quality. It proves reproducibility and subordination. Recall, nDCG and MRR require labels and belong to milestone 2. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.
+There are no relevance judgements in this repository, so NO claim is made about retrieval quality. Milestone 2.0 built the instrument that would measure it - metrics, controls, a label format and self-checks - and deliberately built it before the labels, so that 'is the harness right?' and 'is the system good?' are not the same experiment. M2.1 supplies the judgements. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
+
+What M1 proves is reproducibility and subordination. Recall, nDCG and MRR need labels. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.
 
 266 nodes is small. Every determinism metric is perfect here, which demonstrates determinism, not scalability.
 
-Two further limits, recorded rather than discovered later:
+Four further limits, recorded rather than discovered later:
 
 - Candidate generation has no truncation and degrades at scale. FTS5 with a mandatory ORDER BY rank plus deterministic pagination is the milestone 3 path.
 - An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one.
+- Measured: |D| runs 0 to 147 across the 23-query set, so the depth at which the advisory layer can act at all is a property of the query, not of the corpus. A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off.
+- Only 2 of 23 queries reorder under any graph setting, and one of those is a synthetic 13-term edge case. 'Does the graph layer earn its place?' therefore has a real sample size of one and cannot be settled by labelling; it needs more queries, not more labels.
 
 ---
 
@@ -151,6 +155,20 @@ Bidirectional, on measurement rather than preference: mean depth-2 reach
 81/266 nodes reach nothing forward-only against
 5/266 bidirectionally. No precomputed path index — BFS costs
 0.149 ms for 10 seeds at depth 2.
+
+### The advisory horizon — `drf eval invariance --index index.db`
+
+`|D|` per query: the depth below which the advisory layer provably cannot act,
+because merge is append-only. Across 23 queries `|D|` runs
+**0 to 147**, and the authoritative prefix is identical with
+the provider on and off in 23 of them
+(0 differing).
+
+The advisory layer's reach is inverse to lexical success. Where stage 1 returned 20 or more documents it is structurally silent at every evaluated depth; where it returned one or two, the advisory layer can act from depth 5 down. The neural layer can only speak where lexical retrieval did badly, and is provably mute where it did well - which is what append-only subordination means, stated as a measurement rather than a design intention.
+
+A reachable horizon is necessary but not sufficient. The three out-of-vocabulary queries have |D| = 0, so by horizon alone the advisory layer could occupy every position - and it proposes nothing, because anchor-mode search takes its anchors from D. Anchor starvation is a separate bound from the horizon, and a recall figure on those queries would measure the starvation rather than the provider.
+
+A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off. Reporting that as a finding about neural retrieval would be a category error, and measuring the horizon first is what makes the error visible in advance.
 
 ### Sensitivity — `drf bench sensitivity --index a.db`
 

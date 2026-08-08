@@ -16,12 +16,16 @@ authoritative result — only append below it.
 
 $scope_no_labels
 
+$scope_no_quality
+
 $scope_toy
 
-Two further limits, recorded rather than discovered later:
+Four further limits, recorded rather than discovered later:
 
 - $scope_scale
 - $scope_oov
+- $scope_advisory_reach
+- $scope_graph_underpowered
 
 ---
 
@@ -127,6 +131,20 @@ $graph_bidirectional_reach against $graph_forward_reach forward-only, and
 $graph_forward_dead nodes reach nothing forward-only against
 $graph_bidirectional_dead bidirectionally. No precomputed path index — BFS costs
 $graph_bfs_ms ms for 10 seeds at depth 2.
+
+### The advisory horizon — `$horizon_producer`
+
+`|D|` per query: the depth below which the advisory layer provably cannot act,
+because merge is append-only. Across $horizon_queries queries `|D|` runs
+**$horizon_min to $horizon_max**, and the authoritative prefix is identical with
+the provider on and off in $horizon_identical of them
+($horizon_differing differing).
+
+$horizon_finding
+
+$horizon_second_finding
+
+$horizon_why_m2
 
 ### Sensitivity — `$sensitivity_producer`
 

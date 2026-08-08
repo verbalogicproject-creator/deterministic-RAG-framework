@@ -1,7 +1,7 @@
 # Project State — resume here
 
-**Last checkpoint:** M2.0 complete — the quality harness, built before any labels. 242 tests, 24 falsifiers, all files pass in isolation (2026-08-08). Released `v0.0.3`.
-**Next:** M2.1 — ~50 graded relevance judgements into `queries/labels.jsonl`.
+**Last checkpoint:** M2.0 complete and the M2.1 labelling worksheet generated. 245 tests, 24 falsifiers, all files pass in isolation (2026-08-08). Released `v0.0.4`.
+**Next:** M2.1 — grade stratum A (49 judgements) in `queries/labels.worksheet.jsonl`. Read `queries/LABELLING.md` first.
 **Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
@@ -438,6 +438,53 @@ Bump `RELEASE_VERSION` in `drf/version.py` **before** `freeze write` — a test 
 ### Scope, stated
 
 **No quality figure exists for this system and none appears in this repository.** `drf eval quality` prints that fact rather than a zero. A test walks every spec file to keep it true.
+
+---
+
+## M2.1 ⏳ — labelling worksheet generated, judgements outstanding
+
+`tools/make_labelling_worksheet.py`, `tools/labels_collect.py`, `queries/LABELLING.md`, `queries/labels.worksheet.{jsonl,md}`.
+
+**The selection is the experiment.** Fifty arbitrary judgements settle nothing. The strata come from a measurement — every `affects_ranking` setting probed across all 23 queries:
+
+| setting | queries reordered | which |
+|---|---|---|
+| `ranking.b` | 13 | q01 q02 q03 q04 q05 q09 q10 q11 e04 e05 e06 e07 e08 |
+| `ranking.k1` | 9 | q01 q02 q03 q05 q09 q11 e04 e05 e06 |
+| `graph.max_depth` | **2** | q02, e06 |
+| `graph.seed_count` | **2** | q02, e06 |
+
+| stratum | judgements | queries | settles |
+|---|---|---|---|
+| **A_advisory** | 49 | 7 (`|D| ≤ 7`) | Does the neural layer find what lexical search missed? |
+| **B_length_normalisation** | 40 | 4 (move on `b`, **not** `k1`) | Does `b` improve relevance, or only change it? |
+| **C_graph** | 20 | 1 | ⚠️ cannot be settled |
+
+Stratum A is complete on its own and is almost exactly the ~50 the M2 plan budgeted. B isolates length normalisation from term saturation by taking only the four queries that move under `b` and not under `k1` — the other nine move under both and cannot separate the effects.
+
+### ⚠️ Finding that changes the roadmap: the graph decision is underpowered
+
+Only `q02` and `e06` reorder under any graph setting, and `e06` is a synthetic 13-term edge case. **"Does the graph layer earn its place?" has a real sample size of one.** Labelling cannot settle it — it needs **more queries**, chosen to stress graph structure (lexically thin, well connected). That work moves to **M2.2**. Stratum C is retained for the qualitative read only.
+
+### Finding: the strata are disjoint, and that is a property of the corpus
+
+Low-`|D|` queries are the only ones the advisory layer can reach — and they are inert to *every* ranking parameter, because a handful of candidates leaves a weight nothing to reorder. High-`|D|` queries are parameter-sensitive and advisory-mute. **No single query serves both purposes here.**
+
+### Pooling
+
+Candidates come from D **and** from the advisory provider. A pool drawn only from D could never contain a document lexical retrieval missed, so recall would be measured against a denominator that excluded the exact thing the advisory layer exists to find. Stratum A pools the top **3** advisory proposals per query — shallow, since the provider returns up to 100. Unjudged documents count as grade 0, so **a shallow pool silently flatters recall**; if stratum A shows the advisory layer contributing little, check pool depth before concluding anything. One edit to `pool_advisory`.
+
+### Guardrails
+
+Ungraded rows are written as `"grade": null`, which is **invalid** to the parser; `labels_collect.py` exits 1 rather than writing a partial file. A template pre-filled with `0` would turn a forgotten row into a confident "irrelevant", and a partial file shrinks the recall denominator — which *raises* the measured score.
+
+### Smoke-tested end to end
+
+Ran the full chain on throwaway grades (assigned by rank position, so not judgements and not committed). Three things confirmed: `reverse` scores **recall 1.0000 at depth 10, identical to the system** — the ordering blindness visible in live output; nDCG separates them 0.8830 against 0.5887; and `shuffle_3` scored 0.7826 against `shuffle_4`'s 0.6021, so **a single shuffle seed would have moved the reported margin by ~0.18**. That is the measured justification for using five.
+
+### Staleness guard
+
+`STRATA` hand-lists query ids, which is the same rot as the order-dependent registry bug from M1. The test does not check the list exists — it re-derives `|D|` and asserts stratum A's queries **actually have** the small horizon that justified selecting them. Assert the reason, not the artefact.
 
 ---
 

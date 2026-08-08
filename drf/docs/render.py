@@ -174,7 +174,22 @@ def build_context(index_path: str | None = None) -> dict:
         "graph_bidirectional_dead": benchmarks["graph"]["bidirectional_dead_nodes"],
         "graph_bfs_ms": benchmarks["graph"]["bfs_depth2_10_seeds_ms"],
 
+        "horizon_producer": benchmarks["advisory_horizon"]["producer"],
+        "horizon_queries": benchmarks["advisory_horizon"]["queries"],
+        "horizon_identical": benchmarks["advisory_horizon"]["prefixes_identical"],
+        "horizon_differing": benchmarks["advisory_horizon"]["prefixes_differing"],
+        "horizon_min": benchmarks["advisory_horizon"]["horizon_min"],
+        "horizon_max": benchmarks["advisory_horizon"]["horizon_max"],
+        "horizon_silent": benchmarks["advisory_horizon"][
+            "queries_with_no_reachable_evaluated_depth"],
+        "horizon_finding": benchmarks["advisory_horizon"]["finding"],
+        "horizon_second_finding": benchmarks["advisory_horizon"]["second_finding"],
+        "horizon_why_m2": benchmarks["advisory_horizon"]["why_it_matters_for_M2"],
+
         "scope_no_labels": benchmarks["scope_limits"]["no_relevance_labels"],
+        "scope_no_quality": benchmarks["scope_limits"]["no_quality_measurement"],
+        "scope_advisory_reach": benchmarks["scope_limits"]["advisory_reach_bounds_evaluation"],
+        "scope_graph_underpowered": benchmarks["scope_limits"]["graph_decision_is_underpowered"],
         "scope_toy": benchmarks["scope_limits"]["toy_corpus"],
         "scope_scale": benchmarks["scope_limits"]["posting_union_does_not_scale"],
         "scope_oov": benchmarks["scope_limits"]["oov_yields_nothing"],

@@ -88,6 +88,22 @@ $sensitivity_table
 - Rank fusion (RRF) is the ecosystem's default advice and appears throughout the
   recovered playbooks. It is rejected here: it grants authority to the advisory
   side.
+- **Do not report "the neural layer did not improve nDCG@5" as a finding.** It
+  cannot, ever, by construction — merge is append-only, so every metric at
+  `k <= |D|` is identical with the provider on and off. `|D|` runs
+  $horizon_min to $horizon_max here, so most shallow-depth comparisons are
+  structurally incapable of showing a difference. Run
+  `$horizon_producer` before designing any quality comparison.
+- A reachable horizon is **necessary but not sufficient**: the out-of-vocabulary
+  queries have `|D| = 0`, so nothing bounds the advisory layer — and it still
+  proposes nothing, because anchor-mode search takes its anchors from D.
+- **M1's "assert exact integers" rule does not transfer to quality metrics.**
+  nDCG and recall are ratios. Assert rank positions and counts; report the
+  ratio; require a margin against a control declared in advance. Do not invent
+  an integer where none exists, and do not quietly assert a float either.
+- A set metric cannot see ordering. Milestone 1 measured Jaccard at 1.0000 for
+  five different orderings; recall@k inherits the blindness exactly. Never
+  report recall without a rank-sensitive metric beside it.
 
 ## Scope
 

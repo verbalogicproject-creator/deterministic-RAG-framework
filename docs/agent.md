@@ -8,7 +8,7 @@
 Read this before changing anything. It states what is enforced, what will raise,
 and which assumptions are already measured so you do not re-derive them.
 
-**Spec hash** `2576b96ccc5b0eb89e939cd7dd7f86d1a44a2991d17dabb43197443a216c58b1` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
+**Spec hash** `c747755c9fde2d000f11a4b61eab9311dd138937cc3898344a2f1b54ea192a80` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`
 
 ## Verified facts — do not re-measure, do not assume otherwise
@@ -107,7 +107,23 @@ Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -
 - Rank fusion (RRF) is the ecosystem's default advice and appears throughout the
   recovered playbooks. It is rejected here: it grants authority to the advisory
   side.
+- **Do not report "the neural layer did not improve nDCG@5" as a finding.** It
+  cannot, ever, by construction — merge is append-only, so every metric at
+  `k <= |D|` is identical with the provider on and off. `|D|` runs
+  0 to 147 here, so most shallow-depth comparisons are
+  structurally incapable of showing a difference. Run
+  `drf eval invariance --index index.db` before designing any quality comparison.
+- A reachable horizon is **necessary but not sufficient**: the out-of-vocabulary
+  queries have `|D| = 0`, so nothing bounds the advisory layer — and it still
+  proposes nothing, because anchor-mode search takes its anchors from D.
+- **M1's "assert exact integers" rule does not transfer to quality metrics.**
+  nDCG and recall are ratios. Assert rank positions and counts; report the
+  ratio; require a margin against a control declared in advance. Do not invent
+  an integer where none exists, and do not quietly assert a float either.
+- A set metric cannot see ordering. Milestone 1 measured Jaccard at 1.0000 for
+  five different orderings; recall@k inherits the blindness exactly. Never
+  report recall without a rank-sensitive metric beside it.
 
 ## Scope
 
-Milestone 1 carries no relevance judgements and makes NO claim about retrieval quality. It proves reproducibility and subordination. Recall, nDCG and MRR require labels and belong to milestone 2. An unqualified 'all metrics 1.0' would be exactly the drift this framework exists to prevent.
+There are no relevance judgements in this repository, so NO claim is made about retrieval quality. Milestone 2.0 built the instrument that would measure it - metrics, controls, a label format and self-checks - and deliberately built it before the labels, so that 'is the harness right?' and 'is the system good?' are not the same experiment. M2.1 supplies the judgements. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
