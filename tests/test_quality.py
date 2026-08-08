@@ -395,7 +395,14 @@ def test_evaluation_spec_declares_its_margin_and_says_it_was_declared_first():
     spec = json.loads((ROOT / "spec" / "evaluation.json").read_text())
     assert isinstance(spec["min_ndcg_margin"], float)
     assert spec["declared"] == "2026-08-08"
-    assert "no labels yet" in spec["status"]
+    # This asserted `"no labels yet" in spec["status"]` until 2026-08-08. When
+    # labels arrived the sentence became false - and the test *held it in
+    # place*, which is the worst shape available: a green suite enforcing a
+    # claim that had stopped being true. Found only by an audit re-reading spec
+    # prose against the filesystem. What is durable is that the margin was
+    # declared before any judgement existed, so that is what is asserted now.
+    assert "declared 2026-08-08" in spec["min_ndcg_margin_note"].lower()
+    assert "before any label existed" in spec["min_ndcg_margin_note"].lower()
 
 
 def test_spec_grades_match_the_implementation():
@@ -564,3 +571,128 @@ def test_stratum_c_is_marked_as_unable_to_settle_its_question(index):
     assert len(stratum["queries"]) == 1
     assert "cannot settle" in stratum["why_these"].lower() or \
         "sample size of ONE" in stratum["why_these"]
+
+
+# --------------------------------------------------------------------------
+# Structural integrity audit, 2026-08-08. Each test below closes a gap found
+# by re-reading claims against the filesystem rather than against memory.
+# --------------------------------------------------------------------------
+
+def test_a_duplicate_in_a_ranking_is_rejected_not_counted_twice():
+    """recall 2.0 and nDCG 1.63 were reachable before this guard.
+
+    `judge(["a", "a"], {"a": 3}, depth=2)` counted the same document twice and
+    returned metrics above their own bound, silently, in the direction that
+    flatters the system. Stage 1 cannot emit a duplicate today - which is why
+    this raises rather than de-duplicating. A metric is the last place that
+    should paper over a malformed input.
+    """
+    with pytest.raises(ValueError, match="duplicate"):
+        quality.judge(["a", "a"], {"a": 3}, depth=2)
+
+    # The control: the same call without the duplicate must work, or the guard
+    # could be rejecting everything and the test would still pass.
+    assert quality.judge(["a"], {"a": 3}, depth=2).recall == 1.0
+
+
+def test_no_metric_can_exceed_its_own_bound_on_any_stratum_a_query():
+    """Swept over the real label set rather than argued about."""
+    label_set = labels_module.load(ROOT / "queries" / "labels.jsonl")
+    for query_id, labels in label_set.by_query.items():
+        for depth in (1, 5, 10, 20):
+            judged = quality.judge(sorted(labels), labels, depth=depth)
+            assert 0.0 <= judged.recall <= 1.0, (query_id, depth)
+            assert 0.0 <= judged.precision <= 1.0, (query_id, depth)
+            assert 0.0 <= judged.ndcg <= 1.0, (query_id, depth)
+            assert judged.relevant_retrieved <= judged.relevant_total
+
+
+@requires_source
+def test_recorded_quality_figures_match_a_live_run(index):
+    """The figures in `spec/benchmarks.json` were transcribed by hand.
+
+    Design rule 1 is *no number without a producer*, and the producer command
+    is recorded - but the values were copied into the spec by a human hand,
+    which is exactly the step at which the recovered project's numbers went
+    wrong. This re-runs the producer and compares.
+
+    Rounded to 4 decimals because that is the precision the spec records; the
+    comparison is against what the tool emits, not against a remembered value.
+    """
+    benchmarks = json.loads((ROOT / "spec" / "benchmarks.json").read_text())
+    block = benchmarks.get("retrieval_quality")
+    if block is None:
+        pytest.skip("no quality measurement recorded yet")
+
+    from drf.store import connect, iter_nodes
+    conn = connect(index)
+    known = {n.id for n in iter_nodes(conn)}
+    conn.close()
+    label_set = labels_module.load(
+        ROOT / "queries" / "labels.jsonl", known_node_ids=known
+    )
+    assert label_set.labels_hash == block["labels_hash"], (
+        "the recorded figures were computed from a different label set"
+    )
+    assert label_set.count == block["judgements"]
+
+    live = evaluate.run_quality(index, label_set, load_queries())
+    for row in block["rows"]:
+        computed = live["depths"][row["depth"]]
+        assert round(computed["aggregate"]["system"]["ndcg"], 4) == row["system_ndcg"]
+        assert round(computed["ndcg_margin_over_best_blind"], 4) == row["margin"]
+        assert computed["best_blind_control"] == row["best_blind"]
+        assert computed["clears_required_margin"] == row["clears"]
+
+
+def test_the_worksheet_and_the_collected_labels_cannot_drift():
+    """Two files hold the same judgements. Nothing forced them to agree.
+
+    `labels_collect.py` derives `labels.jsonl` from the worksheet, but both are
+    committed, so editing a grade in the worksheet and forgetting to re-collect
+    leaves a stale label file - and every published figure is bound to the
+    stale one's hash. A second source of truth with no reconciliation is the
+    shape of defect this project was recovered from.
+    """
+    worksheet = [
+        json.loads(line)
+        for line in (ROOT / "queries" / "labels.worksheet.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    collected = {
+        (r["query_id"], r["node_id"]): r["grade"]
+        for r in (
+            json.loads(line)
+            for line in (ROOT / "queries" / "labels.jsonl").read_text().splitlines()
+            if line.strip()
+        )
+    }
+    graded = {
+        (r["query_id"], r["node_id"]): r["grade"]
+        for r in worksheet if r.get("grade") is not None
+    }
+    stale = {k: (graded[k], collected.get(k)) for k in graded if collected.get(k) != graded[k]}
+    assert not stale, (
+        f"{len(stale)} judgement(s) differ between the worksheet and "
+        f"labels.jsonl. Re-run tools/labels_collect.py. Examples: "
+        f"{dict(list(stale.items())[:3])}"
+    )
+
+
+def test_the_release_binds_the_labels_that_produced_its_figures():
+    """A tag names an exact spec, index and result set - and now the labels.
+
+    Without `labels_hash` in the freeze, a release publishes nDCG figures while
+    naming nothing that fixes the judgements behind them. Editing one grade
+    changes every figure with no commit touching any code, so the labels are
+    as much a part of a reproducible release as the index is.
+    """
+    frozen = json.loads((ROOT / "spec" / "frozen.json").read_text())
+    benchmarks = json.loads((ROOT / "spec" / "benchmarks.json").read_text())
+    if "retrieval_quality" not in benchmarks:
+        pytest.skip("no quality measurement recorded yet")
+    assert "labels_hash" in frozen, (
+        "spec/frozen.json does not bind the label set that produced the "
+        "published quality figures"
+    )
+    assert frozen["labels_hash"] == benchmarks["retrieval_quality"]["labels_hash"]

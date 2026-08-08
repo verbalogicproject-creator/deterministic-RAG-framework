@@ -9,7 +9,7 @@ A retrieval framework whose ranking path contains no model. A neural layer may
 be attached under a mechanically enforced guarantee that it can never change an
 authoritative result — only append below it.
 
-**Spec hash** `56f56a620b551b4e082b02a0be659c1d454a032000046d96ebe580c389d917ac`
+**Spec hash** `fe40d6b09a675ff68f95959c4936837d126c7819d6093ee23a78335ee8862602`
 **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`, manifest `1`
 

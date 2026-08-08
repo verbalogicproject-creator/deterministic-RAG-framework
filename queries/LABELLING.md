@@ -1,5 +1,10 @@
 # M2.1 — labelling
 
+> **Status 2026-08-08: stratum A is DONE** — 49 judgements, model-generated, graded blind
+> to rank, in `queries/labels.jsonl`. The measurement is a **FAIL** against the declared
+> margin, and NOT_ESTABLISHED at n=7. Strata B and C remain ungraded, but see the M2.2
+> note in `STATE.md`: more labels on these queries will not resolve a 3-3 split.
+
 ## The short version
 
 ```bash

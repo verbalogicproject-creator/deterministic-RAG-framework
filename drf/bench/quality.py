@@ -142,6 +142,30 @@ def judge(
         raise ValueError(f"depth must be >= 1, got {depth}")
 
     truncated = list(ranking[:depth])
+
+    # A repeated document is counted twice by every metric here, and the
+    # consequences are not cosmetic: `judge(["a", "a"], {"a": 3}, depth=2)`
+    # returned **recall 2.0 and nDCG 1.63** before this guard. Both exceed the
+    # bound that makes them interpretable, silently, in the direction that
+    # flatters the system - the same shape as the un-normalised RBO defect
+    # found in M1.6, which scored 0.716 for byte-identical lists.
+    #
+    # Stage 1 cannot currently emit a duplicate: its sort key is injective over
+    # a set of candidates. That is exactly why this raises rather than
+    # de-duplicating. Silently collapsing a duplicate would let a future caller
+    # - merged results, a fused ranking, a provider tail - feed this a list
+    # whose length no longer matches what it measures, and report a plausible
+    # number. If a duplicate ever arrives, the caller is wrong, and the metric
+    # is the last place that should paper over it.
+    if len(set(truncated)) != len(truncated):
+        seen: set[str] = set()
+        repeats = sorted({x for x in truncated if x in seen or seen.add(x)})
+        raise ValueError(
+            f"ranking contains duplicate ids {repeats[:3]} within depth "
+            f"{depth}; every metric here would count them twice and recall "
+            f"could exceed 1.0. De-duplicate at the source, not here."
+        )
+
     relevant = {node_id for node_id, g in labels.items() if g >= threshold}
 
     ranks = tuple(

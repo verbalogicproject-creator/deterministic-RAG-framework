@@ -121,15 +121,17 @@ def test_bench_digest_is_the_component_that_catches_a_ranking_change(rebuilt):
 @requires_source
 def test_verify_reports_every_difference_not_just_the_first(rebuilt, monkeypatch):
     """A release check that stops at the first mismatch hides the rest."""
-    monkeypatch.setattr(
-        freeze, "read",
-        lambda: {"release": "x", "spec_sha": "a", "manifest_hash": "b",
-                 "bench_digest": "c", "versions": {}},
-    )
+    # Every verified key given a deliberately wrong value, derived from
+    # `freeze.VERIFIED_KEYS` rather than listed here. The first version
+    # hard-coded `== 4` and went stale the moment `labels_hash` joined the
+    # freeze - a test measuring a remembered count instead of the thing.
+    wrong = {key: f"wrong-{key}" for key in freeze.VERIFIED_KEYS}
+    monkeypatch.setattr(freeze, "read", lambda: {"release": "x", **wrong})
     ok, differences = freeze.verify(rebuilt)
     assert not ok
-    assert len(differences) == 4, (
-        f"expected all four components reported, got {differences}"
+    assert len(differences) == len(freeze.VERIFIED_KEYS), (
+        f"expected all {len(freeze.VERIFIED_KEYS)} components reported, "
+        f"got {differences}"
     )
 
 

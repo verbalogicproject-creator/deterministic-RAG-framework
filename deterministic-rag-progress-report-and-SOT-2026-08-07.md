@@ -1,7 +1,7 @@
 # Deterministic RAG — Progress Report & Source of Truth
 
 **Created:** 2026-08-07 · **Updated:** 2026-08-08 (filename keeps the creation date; it is referenced elsewhere)
-**Status:** **Milestone 1 complete and published. M2.0 complete; M2.1 in progress.** 245 tests, 24 falsifiers, all files pass in isolation. Released `v0.0.4` at <https://github.com/verbalogicproject-creator/deterministic-RAG-framework>.
+**Status:** **M1 complete. M2.0 and M2.1 complete — the first quality measurement is a FAIL, and at n=7 the statistical verdict is NOT_ESTABLISHED.** A structural-integrity audit ran before M2.2 and found nine issues, all fixed. 252 tests, 24 falsifiers, all files pass in isolation. Released `v0.0.7` at <https://github.com/verbalogicproject-creator/deterministic-RAG-framework>.
 **Purpose:** Persistent system atlas, plan, and context. This document supersedes any claim made in the recovered source project's own documentation.
 
 > **Reading order for a fresh session:** this file → `STATE.md` (resume point) → `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` (full build plan).
@@ -24,7 +24,7 @@ Reproducibility is measured at **28 cells / 1 distinct digest / 0 discordant pai
 
 M2.0 built the **quality instrument before the labels**, so that "is the harness right?" and "is the system good?" are not the same experiment. It can be checked today three ways: a hand-computed nDCG reference, properties true of any label set, and the advisory horizon, which needs no labels at all.
 
-**No claim is made about retrieval quality, and no such figure exists in the repository.** M2.1 supplies the judgements; the worksheet is generated and outstanding.
+**No positive claim is made about retrieval quality.** M2.1 produced 49 model-generated judgements over 7 queries; the system **fails** the margin declared in advance at every depth, and at n=7 the sample cannot settle the question either way (McNemar exact p = 1.0000; 6 one-directional flips needed, 3-3 observed). Both facts are recorded — the margin says the bar was not cleared, the statistical verdict says the evidence could not have cleared it.
 
 ---
 
@@ -332,7 +332,8 @@ Two consequences: exact ties within D **cannot occur** (so neural tie-breaking i
 | **M1.7** | `docs/render.py` | Zero unresolved placeholders; hand-edit fails the test | ✅ |
 | **M1.8** | Freeze | `spec_sha` + manifest hash + bench digest bound to a tag | ✅ |
 | **M2.0** | `bench/{quality,controls,labels,evaluate}`, `spec/evaluation.json`, `drf eval` | Hand-computed nDCG reference; oracle dominance and permutation invariance on *any* labels; the advisory horizon | ✅ |
-| **M2.1** | Relevance judgements | 49 graded pairs (stratum A) turn three guesses into three measurements | ⬜ **NEXT** — worksheet generated, judgements outstanding |
+| **M2.1** | Relevance judgements | 49 graded pairs (stratum A), model-generated, graded blind to rank | ✅ — result is a **FAIL** against the declared margin; NOT_ESTABLISHED at n=7 |
+| **AUDIT** | Structural-integrity cycle before M2.2 | Nine findings: a test pinning an expired premise, metrics able to exceed 1.0, four provenance gaps, three stale claims | ✅ |
 | **M2.2** | Query-set expansion, then the three deferred decisions | weighted `s1_q`; graph-only candidates in D; does the graph layer earn its place | ⬜ |
 | **M2.3** | BGE re-embedding, compared against labels | ReproRAG: embedding choice dominates variance, so switch *after* labels exist | ⬜ |
 | **M2.4** | Remote provider | Cut from M1 by measurement; needs M2.3 | ⬜ |
@@ -391,7 +392,7 @@ The measurement that prompted the reversal still stands (endpoint live, determin
    **Amended 2026-08-08 for M2.** nDCG and recall are ratios and cannot be integers, so the rule keeps its *shape* rather than its letter: assert rank positions and counts of relevant documents (both integers), report the ratio, and claim an improvement only against a control by a margin **declared in advance**. `spec/evaluation.json` fixes that margin at 0.05, dated before any judgement existed.
 4. **Docs generated from `spec/`, never hand-written.** A hand-edit must fail a test.
 5. **Don't assert byte-identical `.db` files** — SQLite's header change counter makes that fragile. Assert manifest `content_hash` + canonical export.
-6. **Scope honesty in every claim.** There are still **no relevance labels**, so **no claim is made about retrieval quality**. An unqualified "all metrics 1.0" would be exactly the drift this project exists to prevent. `drf eval quality` prints that no labels exist rather than printing a zero, and a test walks every spec file to keep it true.
+6. **Scope honesty in every claim.** 49 model-generated judgements exist over 7 queries and the one measurement made from them is a **FAIL**; **no positive claim is made about retrieval quality**. An unqualified "all metrics 1.0" would be exactly the drift this project exists to prevent. A test requires every published quality figure to carry a `producer` and a `labels_hash`. **Report the sample's resolution beside any figure** — nDCG was published to four decimals at n=7, where resolution is 0.143, which is spurious precision.
 7. **A set metric cannot see ordering.** Measured: Jaccard reported **1.0000** for a pipeline returning five different orderings in five runs. Never report recall alone.
 8. **Every checkpoint carries a falsifier**, registered *before* the test is trusted — a mutation under which that test must fail. Falsifiers are blind to order-dependent tests, so `./tools/check_isolation.sh` runs every file alone; a full `pytest` run cannot find those by definition.
 9. **Verify before claiming — including my own claims.** See the corrections log.
@@ -411,6 +412,15 @@ Claims that failed verification during this session. Kept because the failure mo
 | "`SEMANTIC-DIMENSIONS-REFERENCE.md`'s 50 dims may be an extraction artifact" | **Me**, hedging | **Verified correct** — it really is a different vocabulary sharing only 10 names. |
 | "The production generator uses the `fresh/` 50-dim set" | **Me**, hypothesis | **False** — it's a 100% subset of the canonical 56. Checking paid off. |
 | Corpus is 1051 modules / 13,946 functions | **Me**, first measurement | **Contaminated** — 856 of 1023 unique files were `venv/` third-party code. Re-scoped to 167 project modules; kept venv as a *separate* second corpus, which strengthened the result. |
+
+### Added 2026-08-08 — the pre-M2.2 audit
+
+| Claim | Source | Outcome |
+|---|---|---|
+| `spec/evaluation.json`: "no labels yet. No quality figure exists and none may be quoted." | **This project's own spec** | **False, and a test pinned it.** `tests/test_quality.py` asserted the literal string, so the suite stayed green while enforcing an expired premise. Nothing edited the sentence; the world moved under it. The sharpest instance yet of the failure mode this project exists to remove. |
+| `judge()` metrics are bounded by 1.0 | **Me**, M2.0 | **False on duplicate input.** `judge(["a","a"], {"a":3}, depth=2)` returned recall 2.0 and nDCG 1.63. Now raises. |
+| "system nDCG 0.9064, margin +0.0303" | **Me**, M2.1 | **Spurious precision.** Four decimals at n=7, where resolution is 1/7 = 0.143. The arithmetic is right; the precision implies a resolvable difference that does not exist. |
+| `test_verify_reports_every_difference` asserts `len == 4` | **Me**, M1.7 | **Went stale** the moment `labels_hash` joined the freeze — the same hand-listed-collection defect as the M1.6 registry test, recurring after being fixed once elsewhere. Now iterates `freeze.VERIFIED_KEYS`. |
 
 ### Added 2026-08-08 — during M1.1 → M2.1
 

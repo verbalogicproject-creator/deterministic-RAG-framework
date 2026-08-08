@@ -45,8 +45,40 @@ def spec_sha() -> str:
     })
 
 
+def labels_hash() -> str | None:
+    """Hash of the relevance judgements, or `None` when there are none.
+
+    **Added 2026-08-08**, when the first quality figures were published. Until
+    then a release named a spec, an index and a set of answers, which was the
+    whole reproducible surface. It no longer is: editing one grade in
+    `queries/labels.jsonl` changes every nDCG in the project with no commit
+    touching any code, so a tag that did not name the judgements would name a
+    quality claim it could not reproduce.
+
+    Returns `None` rather than raising when the file is absent, because a
+    release with no labels is a legitimate state - it was the state through all
+    of milestone 1 - and the freeze should record that fact rather than refuse
+    to exist.
+    """
+    from .bench.labels import load
+
+    path = ROOT / "queries" / "labels.jsonl"
+    if not path.exists():
+        return None
+    return load(path).labels_hash
+
+
+#: Every component a release check compares. Named once, so a test can iterate
+#: it rather than hard-coding a count - the first version of
+#: `test_verify_reports_every_difference_not_just_the_first` asserted
+#: `len(differences) == 4` and went stale the moment `labels_hash` was added.
+#: The same hand-listed-collection defect as the M1.6 registry test.
+VERIFIED_KEYS = ("spec_sha", "manifest_hash", "bench_digest", "labels_hash",
+                 "versions")
+
+
 def compute(index_path: str) -> dict:
-    """The three hashes plus the versions that produced them."""
+    """The hashes that make a release reproducible, plus their versions."""
     from .bench import repro
     from .store import connect, read_manifest
 
@@ -61,6 +93,7 @@ def compute(index_path: str) -> dict:
         "spec_sha": spec_sha(),
         "manifest_hash": manifest_hash,
         "bench_digest": repro.digest(results),
+        "labels_hash": labels_hash(),
         "query_count": len(queries),
         "versions": {
             "parser": PARSER_VERSION,
@@ -96,7 +129,7 @@ def verify(index_path: str) -> tuple[bool, list[str]]:
     live = compute(index_path)
     differences = [
         f"{key}: frozen {recorded.get(key)!r} != live {live.get(key)!r}"
-        for key in ("spec_sha", "manifest_hash", "bench_digest", "versions")
+        for key in VERIFIED_KEYS
         if recorded.get(key) != live.get(key)
     ]
     return not differences, differences

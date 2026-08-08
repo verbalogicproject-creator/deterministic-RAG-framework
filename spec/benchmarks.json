@@ -239,6 +239,23 @@
       "The advisory layer found exactly ONE relevant document that lexical retrieval missed, across 7 queries. Of 21 stored-vector proposals, 18 were graded irrelevant, 2 marginal, 1 relevant. Recall of D alone is already 0.9714 at depth 10, so there was almost no room to contribute.",
       "Small-sample saturation is severe. Candidate sets run 1 to 7 documents; q08 has |D| = 1, where every ranker ties trivially. nDCG's log discount is gentle enough that even a poor ordering of a mostly-relevant set scores above 0.77."
     ],
-    "what_this_does_not_show": "That the ranking is bad. 7 queries and a 3-3 split is absence of evidence, not evidence of absence - the same data is consistent with a real but small effect. What it does show is that the current evidence CANNOT support a quality claim, which is the outcome the harness was built to make unavoidable."
+    "what_this_does_not_show": "That the ranking is bad. 7 queries and a 3-3 split is absence of evidence, not evidence of absence - the same data is consistent with a real but small effect. What it does show is that the current evidence CANNOT support a quality claim, which is the outcome the harness was built to make unavoidable.",
+    "statistical_verdict": {
+      "producer": "mud_detection.stats (NLKE-mud-detection), applied to the same rankings",
+      "measured": "2026-08-08",
+      "n": 7,
+      "resolution": "1/7 = 0.143",
+      "min_detectable_flips": 6,
+      "discordant_system_only": 3,
+      "discordant_control_only": 3,
+      "mcnemar_exact_p": "1.0000",
+      "system_win_rate_wilson_95": "3/7, [0.158, 0.750]",
+      "control_win_rate_wilson_95": "3/7, [0.158, 0.750]",
+      "intervals_overlap": true,
+      "paired_delta_ci": "+0.0000, [-0.7143, +0.7143], includes zero",
+      "verdict": "NOT_ESTABLISHED. At n=7 at least 6 one-directional flips are required to clear alpha=0.05; there were 3-3. McNemar exact p = 1.0000 - as un-significant as the test can report.",
+      "self_correction": "The figures recorded above (system nDCG 0.9064, margin +0.0303) are quoted to four decimals on a sample whose resolution is 0.143. That is spurious precision. They are the arithmetic the producer emits and are kept for reproducibility, but the DIFFERENCE between system and control is not resolvable at this sample size and must not be read as one.",
+      "why_it_matters": "The declared-margin FAIL and this verdict say different things. The margin test says the system did not clear the bar. This says the sample could not have told us either way. Both are recorded because reporting only the first would imply the evidence was capable of a verdict."
+    }
   }
 }

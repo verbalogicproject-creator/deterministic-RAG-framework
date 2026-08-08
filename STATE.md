@@ -1,7 +1,7 @@
 # Project State — resume here
 
-**Last checkpoint:** M2.1 stratum A graded and measured. **The system FAILS the declared quality margin at every depth.** 247 tests, 24 falsifiers, isolation clean (2026-08-08). Released `v0.0.6`.
-**Next:** M2.2 — expand the query set. The current evidence cannot support a quality claim either way, and more labels on 7 queries will not change that.
+**Last checkpoint:** M2.1 measured (**FAIL**), then a full structural-integrity audit. 252 tests, 24 falsifiers, isolation clean (2026-08-08). Released `v0.0.7`.
+**Next:** M2.2 — expand the query set, and adopt `mud_detection` as the verdict layer (see below).
 **Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
@@ -441,7 +441,7 @@ Bump `RELEASE_VERSION` in `drf/version.py` **before** `freeze write` — a test 
 
 ---
 
-## M2.1 ⏳ — labelling worksheet generated, judgements outstanding
+## M2.1 (planning record) — how the worksheet was stratified
 
 `tools/make_labelling_worksheet.py`, `tools/labels_collect.py`, `queries/LABELLING.md`, `queries/labels.worksheet.{jsonl,md}`.
 
@@ -544,6 +544,72 @@ Both had premises that expired the moment labels existed:
 ### ➡️ M2.2 is re-scoped again: expand the query set first
 
 More labels on these 7 queries will not resolve a 3–3 split; the variance is between queries, not within them. M2.2 leads with **query-set expansion** — which also unblocks the graph decision, still stuck at a real sample size of one.
+
+---
+
+## AUDIT — structural integrity cycle, 2026-08-08 (before M2.2)
+
+Ran deliberately: re-read every claim **against the filesystem**, not against memory. Nine findings; all fixed.
+
+### 🔴 Severe
+
+**1. `spec/evaluation.json` asserted something false — and a test held it in place.** Its `status` read *"no labels yet. No quality figure exists and none may be quoted."* Labels existed; a figure was published. Worse, `tests/test_quality.py:398` asserted the literal string `"no labels yet"`, so the suite was **green while enforcing a claim that had stopped being true**. Nothing edited that sentence; the world moved under it.
+> This is the drift mechanism the whole project targets, found *inside* the project. The lesson is not "check the spec" — it is that **a test can pin an expired premise**, and only re-reading the claim against reality catches it. Re-aimed at the durable fact (the margin was declared before any judgement existed).
+
+**2. `judge()` let metrics exceed their own bound.** `judge(["a","a"], {"a":3}, depth=2)` returned **recall 2.0 and nDCG 1.63** — a duplicate counted twice, silently, in the direction that flatters the system. Same shape as the un-normalised RBO defect from M1.6. Now raises; stage 1 cannot emit duplicates today, which is precisely why the metric should not paper over one arriving from a future caller (merged results, a fused ranking).
+
+### 🟠 Gaps closed
+
+**3. Hand-transcribed figures had no verifier.** The nDCG values in `spec/benchmarks.json` were typed by hand from CLI output. They happened to match — now `test_recorded_quality_figures_match_a_live_run` re-runs the producer and compares, including the `labels_hash`.
+
+**4. Two sources of truth for the judgements.** `labels.worksheet.jsonl` and `labels.jsonl` are both committed and could drift silently; a stale collect would leave every published figure bound to the wrong hash. Now reconciled by a test.
+
+**5. The release did not bind its labels.** `frozen.json` named spec + index + bench digest, but not the judgements behind the published quality figures. `labels_hash` added to the freeze and to `verify()`.
+
+**6. `test_verify_reports_every_difference` hard-coded `== 4`.** Went stale the instant `labels_hash` joined the freeze — the *same hand-listed-collection defect* as the M1.6 registry test. Fixed structurally: `freeze.VERIFIED_KEYS` is named once and the test iterates it.
+
+### 🟡 Stale prose (fixed)
+
+**7–9.** SOT status line, its M2.1 row (`⬜ NEXT`), its discipline rule 6 (*"there are still no relevance labels"*); STATE.md had **two** M2.1 sections; `LABELLING.md` framed stratum A as to-do.
+
+### Edge-case sweep — clean apart from finding 2
+
+Empty ranking, empty labels, all-grade-0, depth 0, depth > len, unlabelled documents, negative grades, float/string/bool/null grades, blank and comment lines, unknown query and node ids, oracle/reverse/shuffle on empty and single-item lists. All behave, all documented. One asymmetry noted and left: with no relevant documents, recall gets the 1.0 convention and precision does not.
+
+---
+
+## ➡️ M2.2 input: adopt `mud_detection`
+
+`https://github.com/verbalogicproject-creator/NLKE-mud-detection` — user-authored, Apache-2.0, **`dependencies = []`**, stdlib only, "no model in the decision path", "determinism is the audit property", float-free journal hashing. Those are drf's own invariants, independently arrived at.
+
+**Run against M2.1's actual result, it settles the question I answered by eye:**
+
+```
+power_report(n=7)   min_detectable_flips = 6   resolution = 0.143
+discordant          3 system-only / 3 control-only
+McNemar exact       p = 1.0000
+Wilson 95%          system 3/7 [0.158, 0.750]  control 3/7 [0.158, 0.750]   overlap
+paired delta        +0.0000  CI [-0.7143, +0.7143]  includes zero
+verdict             NOT_ESTABLISHED
+```
+
+**And it corrects me.** I published nDCG to four decimals (0.9064, margin +0.0303) on a sample whose resolution is **0.143**. Spurious precision — the same error mud-detection's own README calls out about its author at n=19. Recorded in `benchmarks.retrieval_quality.statistical_verdict`.
+
+**`NOT_ESTABLISHED` and the margin FAIL say different things**, and both must be reported: the margin says *the system did not clear the bar*; the statistical verdict says *the sample could not have told us either way*.
+
+### ⚠️ Adopt `mud_detection` only — not `declared_core`
+
+The repo vendors `declared_core/retrieval/` (bm25, **fusion**, structural, intent) and `sqlite3_sag/`. Two reasons to take none of it:
+1. **`fusion.py` blends signals into one score.** drf *rejects* fusion — any weight grants authority. Vendoring it would contradict the central guarantee.
+2. A second BM25 in-tree is architectural mud in the literal sense. drf's own is proven against a hand-computed reference.
+
+### The strongest lead: Layer 3 against the graph question
+
+mud-detection exists because a **`parent-boost`** signal — propagate a matched child's score up to its parent — passed an LLM compatibility check and then regressed held-out recall. It had learned to promote **well-connected** items rather than relevant ones.
+
+drf's graph layer contributes `best_depth` from BFS expansion. **That is structurally the same pathology risk**, and it is the open question M2.2 inherits ("does the graph layer earn its place?"). Layer 3 tests exactly this — nuisance-correlated signal against a `degree` map — and needs **no evaluation run**. It should be the first thing M2.2 does, before any new labelling.
+
+Its `fixtures/calibration/` also holds 49 queries over a 150-item KG with gold labels and a degree map — measured, not synthetic. A different corpus, so not a drop-in eval set, but it can calibrate the harness against a case with a known answer.
 
 ---
 
