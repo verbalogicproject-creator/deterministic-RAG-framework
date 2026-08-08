@@ -446,3 +446,65 @@ def test_no_quality_figure_is_published_anywhere_yet():
     for path in sorted((ROOT / "spec").glob("*.json")):
         offenders = _numeric_metric_keys(json.loads(path.read_text()))
         assert not offenders, f"{path.name} publishes {offenders}"
+
+
+# --------------------------------------------------------------------------
+# The labelling worksheet - its selection must stay true, not just present
+# --------------------------------------------------------------------------
+
+def _strata():
+    sys.path.insert(0, str(ROOT / "tools"))
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "make_labelling_worksheet", ROOT / "tools" / "make_labelling_worksheet.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.STRATA
+
+
+def test_every_stratum_names_queries_that_exist():
+    known = {q["id"] for q in load_queries()}
+    for stratum in _strata():
+        missing = set(stratum["queries"]) - known
+        assert not missing, f"{stratum['name']} names unknown queries {missing}"
+
+
+@requires_source
+def test_stratum_a_queries_are_actually_reachable_by_the_advisory_layer(index):
+    """Asserts the *reason* for the selection, not merely that it exists.
+
+    Stratum A exists because those queries have a small enough |D| that the
+    evaluated depths fall beyond the horizon. A hand-written list of query ids
+    goes stale silently when the query set changes - the same class of bug as
+    the order-dependent registry test found in M1 - so the property that
+    justified the selection is what gets checked, not the list.
+    """
+    from drf.store import connect, read_manifest
+
+    stratum = next(s for s in _strata() if s["name"] == "A_advisory")
+    conn = connect(index)
+    index_hash = read_manifest(conn)["content_hash"]
+    queries = {q["id"]: q for q in load_queries()}
+    for query_id in stratum["queries"]:
+        horizon = len(evaluate.rank_ids(conn, index_hash, queries[query_id]["text"]))
+        assert 0 < horizon < 10, (
+            f"{query_id} has |D|={horizon}; stratum A requires a horizon the "
+            f"evaluated depths can exceed, and a non-empty D to anchor from"
+        )
+    conn.close()
+
+
+@requires_source
+def test_stratum_c_is_marked_as_unable_to_settle_its_question(index):
+    """The graph decision has a real sample size of one, and says so.
+
+    Measured: only q02 and e06 reorder under any graph setting, and e06 is a
+    synthetic edge case. A stratum that cannot answer its question must not be
+    presented as though it can.
+    """
+    stratum = next(s for s in _strata() if s["name"] == "C_graph")
+    assert stratum["complete_on_its_own"] is False
+    assert len(stratum["queries"]) == 1
+    assert "cannot settle" in stratum["why_these"].lower() or \
+        "sample size of ONE" in stratum["why_these"]
