@@ -9,7 +9,7 @@ A retrieval framework whose ranking path contains no model. A neural layer may
 be attached under a mechanically enforced guarantee that it can never change an
 authoritative result — only append below it.
 
-**Spec hash** `77302e076be0b25173227381b0b7426e35180abd11ddd8301ca325e273e96b97`
+**Spec hash** `2576b96ccc5b0eb89e939cd7dd7f86d1a44a2991d17dabb43197443a216c58b1`
 **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`, manifest `1`
 
@@ -168,7 +168,7 @@ Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -
 
 ## Falsifiers
 
-20 checkpoint invariants each carry a falsifier: a mutation under
+24 checkpoint invariants each carry a falsifier: a mutation under
 which the named test *must* fail. A test that survives its own falsifier cannot
 fail, and a test that cannot fail proves nothing. 3 checkpoints
 are deliberately exempt, each with a recorded reason — they are guarded at
@@ -196,6 +196,10 @@ runtime, so falsifying them would prove the guard rather than the test.
 | bench_detects_nondeterminism | The chaos control - the prior engine's ranking, score-only with no tiebreak over unordered candidates - produces more than one distinct digest. | Give chaos_run the injective tiebreak back, making it deterministic. |
 | docs_are_generated | Each committed docs/*.md is byte-identical to a fresh render from spec/ plus a built index. | Append a line to whatever render_document produces, so a fresh render diverges from what is on disk. |
 | docs_fail_on_missing_placeholder | Rendering a template whose placeholder the context does not supply raises KeyError. | Use Template.safe_substitute instead of substitute. |
+| quality_ranks_detect_reordering | ranks_of_relevant distinguishes a ranking from its exact reversal, in integers, where recall cannot. | Return the relevant documents' ranks sorted by node id rather than by rank - the shape the tuple takes if someone 'simplifies' it toward a set. |
+| quality_labels_reject_conflicts | Two judgements of the same query/document pair at different grades raise rather than resolving. | Take the last judgement seen, the ordinary dict-assignment behaviour. |
+| quality_unknown_label_rejected | A judgement naming a node id absent from the index raises rather than being skipped. | Skip unresolvable judgements, the tolerant behaviour that looks like robustness. |
+| advisory_horizon_is_live | advisory_horizon returns |D| per query, so the depths the advisory layer can reach are computed rather than assumed. | Return a large constant, making every depth look structurally unreachable. |
 
 ## Configuration
 

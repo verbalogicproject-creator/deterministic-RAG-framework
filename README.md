@@ -13,7 +13,7 @@ is mechanically prevented from changing an authoritative result. It can only
 append below one.
 
 ```
-release 0.0.2 · spec 77302e076be0 · index 90ab5db96958
+release 0.0.3 · spec 2576b96ccc5b · index 90ab5db96958
 Python 3.12+ · standard library only · no dependencies
 ```
 
@@ -57,7 +57,7 @@ character. That is the promise, and it takes about ten seconds to check.
 | The neural layer cannot interfere | 8 providers including crashing, hanging, flooding, and one actively trying to promote itself |
 | Documentation cannot drift | Every doc is generated from `spec/`; a hand edit fails the suite |
 
-20 checkpoint tests each carry a **falsifier** — a mutation under
+24 checkpoint tests each carry a **falsifier** — a mutation under
 which that test must fail. A test that survives its own falsifier cannot fail,
 and a test that cannot fail proves nothing.
 

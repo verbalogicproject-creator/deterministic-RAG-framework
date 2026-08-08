@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from drf.ingest.build import build_index          # noqa: E402
 from drf.store import connect, read_manifest, table_count  # noqa: E402
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_OUT = "index.db"
 
 
@@ -236,6 +237,74 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    """The quality harness. Reports an instrument reading, or says there is none.
+
+    `invariance` needs no labels and runs today. `quality` needs them, and when
+    they are absent it says so rather than printing zeros - a harness that
+    reported 0.0 for "not measured" would publish a number nobody produced.
+    """
+    from drf.bench import evaluate, labels as labels_module
+    from drf.bench.repro import load_queries
+
+    queries = load_queries()
+
+    if args.suite in ("invariance", "all"):
+        report = evaluate.run_advisory_invariance(args.index, queries)
+        print("=== advisory horizon: where the neural layer can act at all ===")
+        print("  Merge is append-only, so every metric at k <= |D| is identical")
+        print("  with the provider on and off. That is the guarantee, not a")
+        print("  weakness - and it bounds what a quality comparison can show.\n")
+        print(f"  {'query':8s} {'|D|':>5s} {'tail':>6s}  depths advisory can reach")
+        for row in sorted(report["rows"], key=lambda r: r["horizon"]):
+            tail = max(row["tail_lengths"].values())
+            reach = row["depths_advisory_can_reach"] or "- none -"
+            print(f"  {row['query_id']:8s} {row['horizon']:5d} {tail:6d}  {reach}")
+        print(f"\n  prefixes identical  {report['prefixes_identical']}"
+              f"/{report['queries']}")
+        print(f"  prefixes differing  {report['prefixes_differing']}  "
+              f"(any non-zero here is a subordination failure)")
+
+    if args.suite in ("quality", "all"):
+        print("\n=== retrieval quality ===")
+        if not os.path.exists(args.labels):
+            print(f"  no judgements at {args.labels}")
+            print("  M2.0 delivers the instrument; M2.1 supplies the labels.")
+            print("  No quality figure exists for this system, and printing a")
+            print("  zero here would be inventing one.")
+            return 0
+        from drf.store import connect, iter_nodes
+        conn = connect(args.index)
+        known = {n.id for n in iter_nodes(conn)}
+        conn.close()
+        label_set = labels_module.load(
+            args.labels,
+            known_query_ids={q["id"] for q in queries},
+            known_node_ids=known,
+        )
+        report = evaluate.run_quality(args.index, label_set, queries)
+        print(f"  labels {label_set.count} judgements over "
+              f"{len(label_set.judged_queries)} queries  "
+              f"[{label_set.labels_hash[:16]}...]")
+        for depth, block in sorted(report["depths"].items()):
+            aggregate = block["aggregate"]
+            print(f"\n  --- depth {depth} ---")
+            print(f"  {'ranker':12s} {'nDCG':>8s} {'recall':>8s} "
+                  f"{'MRR':>8s} {'gain':>7s} {'missed':>7s}")
+            for name in ("system", "oracle", *sorted(
+                n for n in aggregate if n not in ("system", "oracle")
+            )):
+                row = aggregate[name]
+                print(f"  {name:12s} {row['ndcg']:8.4f} {row['recall']:8.4f} "
+                      f"{row['mrr']:8.4f} {row['gain_total']:7d} "
+                      f"{row['queries_with_no_relevant_hit']:7d}")
+            print(f"  margin over {block['best_blind_control']}: "
+                  f"{block['ndcg_margin_over_best_blind']:+.4f} "
+                  f"(required {block['required_margin']:+.4f}) "
+                  f"{'PASS' if block['clears_required_margin'] else 'FAIL'}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="drf", description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -269,6 +338,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--compare", nargs="*",
                    help="additional independently built indexes")
     p.set_defaults(func=cmd_bench)
+
+    p = sub.add_parser("eval", help="quality harness and the advisory horizon")
+    p.add_argument("suite", choices=("invariance", "quality", "all"),
+                   default="all", nargs="?")
+    p.add_argument("--index", default=DEFAULT_OUT)
+    p.add_argument("--labels", default=os.path.join(ROOT, "queries", "labels.jsonl"))
+    p.set_defaults(func=cmd_eval)
 
     p = sub.add_parser("docs", help="render the four audience documents")
     p.add_argument("action", choices=("build",), default="build", nargs="?")

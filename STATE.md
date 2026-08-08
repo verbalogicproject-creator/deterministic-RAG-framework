@@ -1,6 +1,7 @@
 # Project State — resume here
 
-**Last checkpoint:** M1.0 complete, 23/23 tests green (2026-08-07)
+**Last checkpoint:** M2.0 complete — the quality harness, built before any labels. 242 tests, 24 falsifiers, all files pass in isolation (2026-08-08). Released `v0.0.3`.
+**Next:** M2.1 — ~50 graded relevance judgements into `queries/labels.jsonl`.
 **Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
@@ -394,6 +395,51 @@ git tag v<version> && git push --tags
 ```
 
 Bump `RELEASE_VERSION` in `drf/version.py` **before** `freeze write` — a test asserts the frozen release matches the code.
+
+## M2.0 ✅ — the quality harness, built before the labels
+
+`drf/bench/quality.py`, `controls.py`, `labels.py`, `evaluate.py`, `spec/evaluation.json`, `tests/test_quality.py` (27 tests), `drf eval`.
+
+**Why the harness comes before the labels.** Validating a harness on labelled data makes "is the harness right?" and "is the system good?" one experiment, so a disappointing answer names no culprit. Three things can be checked with no ground truth, and all three are implemented:
+
+1. **Hand-computed reference** — nDCG derived on paper for a 5-document example (`0.8354478`; reversed `0.5116930`), compared against literals. The M1.2 BM25 fixture again.
+2. **Properties true of any label set** — the oracle sorts the system's *own* candidates by grade, so `oracle.ndcg >= system.ndcg` is a theorem, not a finding. A reversal is a permutation, so it cannot change a retrieved set. Both run on deliberately nonsensical synthetic labels and catch real arithmetic bugs.
+3. **The structural bound** — `advisory_horizon` needs no labels whatsoever.
+
+**The M1 assertion rule, adapted rather than abandoned.** nDCG and recall are ratios; they cannot be integers. Kept the shape: `ranks_of_relevant` is a tuple of 1-based integer ranks and is the M2 analogue of `discordant_pairs`. Recall reports the same value for a ranking and its exact reversal (test asserts this blindness *exists*); the rank tuple reports `(1, 2)` against `(4, 5)`.
+
+**Controls** — `oracle` (ceiling; a low oracle means the documents were never retrieved, so reordering could not have helped), `reverse` (same set, inverted order — any metric scoring it equal to the system is order-blind), `shuffle_0..4`, and **`id_order`**: sort by sha256 node id. Perfectly deterministic, perfectly reproducible, entirely relevance-blind — it would score 1.0 on every metric in `bench/metrics.py`. It is the counter-example to the reading this framework most invites, that determinism is a quality property. `min_ndcg_margin = 0.05` was declared in `spec/evaluation.json` on 2026-08-08, before any label existed.
+
+### Measured: the advisory horizon (needs no labels, ran today)
+
+`|D|` per query across the 23-query set: **min 0, max 147**. Prefixes identical **23/23** with the provider on and off.
+
+| `|D|` | queries | depths the advisory layer can reach (of 1/5/10/20) |
+|---|---|---|
+| 0 | 3 (all OOV) | all — but it proposes nothing (see below) |
+| 1–4 | 4 | 5, 10, 20 |
+| 5–7 | 3 | 10, 20 |
+| 10–19 | 6 | 20 |
+| ≥ 20 | 7 | **none** |
+
+**Finding: the advisory layer's reach is inverse to lexical success.** Where stage 1 returned ≥ 20 documents it is structurally silent at every evaluated depth; where it returned one or two, it can act from depth 5 down. The neural layer can only speak where lexical retrieval did badly, and is provably mute where it did well. That is what append-only subordination *means*, now stated as a measurement rather than a design intention.
+
+**Second finding: a reachable horizon is necessary but not sufficient.** The three OOV queries have `|D| = 0`, so by horizon alone the advisory layer could occupy every position — and it proposes nothing, because anchor-mode search takes its anchors *from D*. **Anchor starvation is a second bound, independent of the horizon.** A recall figure on those queries would measure starvation, not the provider. This is the M1 scope limit observed rather than asserted, and the fix if wanted is a Stage 1 fix (character n-grams), never a neural one.
+
+### Two bugs found and fixed while implementing
+
+- **`test_shallow_depths_are_structurally_unreachable` asserted the wrong thing.** It assumed a corpus-wide bound; `|D|` is per query and 7 of 23 fall below depth 5. Replaced with the real structure above — the failure produced a better finding than the test would have.
+- **`test_no_quality_figure_is_published` was a substring scan and matched the spec's own worked example** (a sentence explaining why `nDCG@10 = 0.71` is not evidence). Now walks the JSON for a **metric name bound to a number** — prose is where explanation lives, a key bound to a number is where a claim lives, and only the second is a publication. `min_ndcg_margin` deliberately does not match: it is a declared threshold, not a result.
+
+### Freeze discrimination worth noting
+
+`spec_sha` moved; `manifest_hash` and `bench_digest` did **not**. Correct, and a useful demonstration: M2.0 added an instrument and changed nothing about what the system returns.
+
+### Scope, stated
+
+**No quality figure exists for this system and none appears in this repository.** `drf eval quality` prints that fact rather than a zero. A test walks every spec file to keep it true.
+
+---
 
 ## M2 GATE — run 2026-08-08, after M1 completed
 

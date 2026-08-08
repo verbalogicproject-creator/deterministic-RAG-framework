@@ -1,0 +1,83 @@
+{
+  "spec_version": 1,
+  "description": "How retrieval quality is measured in milestone 2, declared before any judgement exists. A threshold chosen after seeing the number it must pass is not a threshold, so every requirement here is fixed in advance and dated.",
+  "declared": "2026-08-08",
+  "status": "M2.0 - harness built, no labels yet. No quality figure exists and none may be quoted.",
+
+  "relevance_scale": {
+    "0": "irrelevant",
+    "1": "marginal - touches the topic, would not satisfy the query",
+    "2": "relevant - a reasonable answer",
+    "3": "vital - the document the query is really asking for",
+    "threshold_for_recall_and_precision": 2,
+    "why_graded_not_binary": "nDCG needs to separate 'answers the question' from 'on topic'. On a 266-node corpus of closely related Claude API documents a binary judgement would mark almost everything relevant, and a metric that cannot discriminate cannot rank."
+  },
+
+  "gain_function": {
+    "form": "2**grade - 1",
+    "values": {"0": 0, "1": 1, "2": 3, "3": 7},
+    "why": "Exponential gain makes a vital document worth more than two relevant ones, which is the behaviour a user experiences. Its integrality is also why gain_total can sit on the assertion surface while nDCG cannot."
+  },
+
+  "depths": [1, 5, 10, 20],
+
+  "assertion_discipline": {
+    "rule": "Assert integers; report floats.",
+    "why_the_M1_rule_does_not_transfer": "Milestone 1 asserted exact integers because a float near 1.0 proved nothing - the chaos control scored Kendall's Tau 0.9761 while provably non-deterministic. nDCG and recall are ratios and cannot be integers. The shape of the rule is kept instead of the letter.",
+    "integer_surface": [
+      "relevant_total",
+      "relevant_retrieved",
+      "first_relevant_rank",
+      "ranks_of_relevant",
+      "gain_total",
+      "queries_with_no_relevant_hit",
+      "horizon"
+    ],
+    "float_surface": ["ndcg", "recall", "precision", "mrr"],
+    "ranks_of_relevant_is_the_key_one": "The M2 analogue of discordant_pairs. Milestone 1 measured that set metrics are blind to ordering - Jaccard reported 1.0000 for five different orderings. Recall@k has the same blindness. A tuple of integer ranks carries the set information plus the ordering it discards, so a reversed ranking is visible in an assertion rather than only in a float's third decimal."
+  },
+
+  "controls": {
+    "why": "A quality figure has no natural perfect score to look suspicious against. nDCG@10 = 0.71 looks like a result; it is one only against a stated alternative. This is the chaos control generalised.",
+    "oracle": "The system's own candidates sorted by grade. The ceiling, and a diagnostic: a low oracle means the relevant documents were never retrieved, so no reordering could have helped.",
+    "id_order": "Sort by node id. sha256 digests, so relevance-blind - and perfectly deterministic, scoring 1.0 on every metric in bench/metrics.py. The counter-example to the reading this framework most invites: determinism is not a quality property.",
+    "reverse": "Exact reversal. Same retrieved set, inverted order. Any metric that scores this equal to the system is order-blind, which is how M2 detects that mechanically.",
+    "shuffle_0..4": "Seeded permutations. Five, because one permutation in a few dozen beats a real ranker on a short list."
+  },
+
+  "min_ndcg_margin": 0.05,
+  "min_ndcg_margin_note": "Declared 2026-08-08, before any label existed. The system must beat the best relevance-blind control by this much at the reference depth before any quality claim may be published. Chosen as a policy floor, not measured; it is deliberately low, because its job is to catch a system that is indistinguishable from sorting by hash, not to certify that the system is good. Raising it later is a change of standard and must be recorded as one.",
+
+  "reference_depth": 10,
+
+  "harness_self_checks": {
+    "why": "The harness is built before the labels so that 'is the harness right?' and 'is the system good?' are not the same experiment. These properties hold for ANY label set, including synthetic ones, so they can be tested today.",
+    "oracle_dominates": "oracle.gain_total >= system.gain_total and oracle.ndcg >= system.ndcg, for every label set. The oracle is optimal over the same candidates by construction. A violation is an arithmetic bug, not a result.",
+    "permutation_preserves_the_set": "At depth >= len(ranking), reverse retrieves exactly as many relevant documents as the system. A permutation cannot change a set.",
+    "hand_computed_reference": "nDCG derived on paper for a 5-document example and compared against a literal, as M1.2 did for BM25."
+  },
+
+  "structural_bound": {
+    "name": "advisory_horizon",
+    "definition": "|D| - the number of authoritative results for a query.",
+    "claim": "Merge is append-only, so every metric computed at k <= |D| is byte-identical with the neural provider on and off. precision@1, nDCG@5 and MRR therefore CANNOT be improved by the advisory layer - by construction, not by weakness.",
+    "why_it_is_recorded_here": "Evaluating at shallow depth will measure exactly zero benefit from the neural layer. That is the guarantee working. Without this bound written down in advance, the result reads as a negative finding about neural retrieval when it is a measurement artefact.",
+    "what_the_advisory_layer_can_be_asked": "Only whether it retrieves relevant documents that lexical search missed entirely - recall at k > |D|, and coverage of relevant documents absent from D.",
+    "producer": "drf eval invariance --index index.db"
+  },
+
+  "labels": {
+    "path": "queries/labels.jsonl",
+    "format": "JSONL, one judgement per line: {\"query_id\", \"node_id\", \"grade\", \"note\"}",
+    "why_flat": "Labels are written by hand over many sittings. One line per judgement makes additions appends, so a diff shows what a session decided; a nested object makes every addition an edit of an existing line, which is how a judgement gets silently overwritten.",
+    "duplicate_rule": "Identical is fine, divergent is an error - the same conflict-free union that governs edge collapse in ingest. Two sittings disagreeing is evidence the query is ambiguous, and averaging or last-wins destroys it.",
+    "unknown_node_id_rule": "Error, not a skipped row. A dropped judgement shrinks the recall denominator, which RAISES measured recall. A validation step whose failure mode flatters the results is worse than none.",
+    "binding": "Every result carries labels_hash. A quality figure is a statement about a specific set of judgements, and editing one grade changes every nDCG in the project with no commit touching any code."
+  },
+
+  "known_limits": {
+    "corpus_size": "266 documents with roughly 10-86 candidates per query. IR metrics saturate easily at this size and error bars are wide. Expect a handful of queries to dominate any average.",
+    "pooled_assessment": "Documents absent from the label file are treated as grade 0. If the judgement pool is shallow, this understates recall - the standard assumption, recorded because it is invisible in the output.",
+    "no_result_yet": "M2.0 delivers the instrument. It measures nothing about this system's retrieval quality and no such number appears anywhere in this repository."
+  }
+}

@@ -12,7 +12,11 @@
     "axes": {
       "in_process_repeats": 5,
       "subprocess_repeats": 3,
-      "hash_seeds": ["0", "1", "12345"],
+      "hash_seeds": [
+        "0",
+        "1",
+        "12345"
+      ],
       "independent_builds": 2
     },
     "cells": 28,
@@ -29,14 +33,54 @@
     "why_it_exists": "Every metric scores 1.0 on the real pipeline, so perfect scores are compatible with a harness that measures nothing. This control is the only evidence the harness can report failure.",
     "runs": 5,
     "rows": [
-      {"metric": "distinct_digests", "real": "1", "chaos": "5", "separates": "yes"},
-      {"metric": "mismatched_positions", "real": "0", "chaos": "551", "separates": "yes"},
-      {"metric": "discordant_pairs", "real": "0", "chaos": "3931", "separates": "yes"},
-      {"metric": "exact_match_rate", "real": "1.0000", "chaos": "0.6196", "separates": "yes"},
-      {"metric": "kendall_tau", "real": "1.0000", "chaos": "0.9761", "separates": "barely"},
-      {"metric": "rbo", "real": "1.0000", "chaos": "0.9942", "separates": "barely"},
-      {"metric": "jaccard", "real": "1.0000", "chaos": "1.0000", "separates": "NO"},
-      {"metric": "overlap_coefficient", "real": "1.0000", "chaos": "1.0000", "separates": "NO"}
+      {
+        "metric": "distinct_digests",
+        "real": "1",
+        "chaos": "5",
+        "separates": "yes"
+      },
+      {
+        "metric": "mismatched_positions",
+        "real": "0",
+        "chaos": "551",
+        "separates": "yes"
+      },
+      {
+        "metric": "discordant_pairs",
+        "real": "0",
+        "chaos": "3931",
+        "separates": "yes"
+      },
+      {
+        "metric": "exact_match_rate",
+        "real": "1.0000",
+        "chaos": "0.6196",
+        "separates": "yes"
+      },
+      {
+        "metric": "kendall_tau",
+        "real": "1.0000",
+        "chaos": "0.9761",
+        "separates": "barely"
+      },
+      {
+        "metric": "rbo",
+        "real": "1.0000",
+        "chaos": "0.9942",
+        "separates": "barely"
+      },
+      {
+        "metric": "jaccard",
+        "real": "1.0000",
+        "chaos": "1.0000",
+        "separates": "NO"
+      },
+      {
+        "metric": "overlap_coefficient",
+        "real": "1.0000",
+        "chaos": "1.0000",
+        "separates": "NO"
+      }
     ],
     "findings": [
       "Set-based metrics are blind to ordering non-determinism. Jaccard reports 1.0000 for a pipeline returning five different orderings in five runs.",
@@ -48,10 +92,30 @@
     "measured": "2026-08-08",
     "queries": 23,
     "rows": [
-      {"setting": "ranking.b", "default": "0.75", "probe": "0.375", "reordered": "13"},
-      {"setting": "ranking.k1", "default": "1.2", "probe": "0.6", "reordered": "9"},
-      {"setting": "graph.max_depth", "default": "2", "probe": "3", "reordered": "2"},
-      {"setting": "graph.seed_count", "default": "10", "probe": "20", "reordered": "2"}
+      {
+        "setting": "ranking.b",
+        "default": "0.75",
+        "probe": "0.375",
+        "reordered": "13"
+      },
+      {
+        "setting": "ranking.k1",
+        "default": "1.2",
+        "probe": "0.6",
+        "reordered": "9"
+      },
+      {
+        "setting": "graph.max_depth",
+        "default": "2",
+        "probe": "3",
+        "reordered": "2"
+      },
+      {
+        "setting": "graph.seed_count",
+        "default": "10",
+        "probe": "20",
+        "reordered": "2"
+      }
     ],
     "finding": "Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees."
   },
@@ -88,5 +152,25 @@
     "toy_corpus": "266 nodes is small. Every determinism metric is perfect here, which demonstrates determinism, not scalability.",
     "posting_union_does_not_scale": "Candidate generation has no truncation and degrades at scale. FTS5 with a mandatory ORDER BY rank plus deterministic pagination is the milestone 3 path.",
     "oov_yields_nothing": "An all-out-of-vocabulary query produces empty D and therefore no proposals. Correct under subordination; the fix, if wanted, is a Stage 1 fix such as character n-grams, never a neural one."
+  },
+  "advisory_horizon": {
+    "producer": "drf eval invariance --index index.db",
+    "measured": "2026-08-08",
+    "what_it_is": "|D| per query - the number of authoritative results. Merge is append-only, so every metric computed at k <= |D| is byte-identical with the neural provider on and off.",
+    "queries": 23,
+    "prefixes_identical": "23/23",
+    "prefixes_differing": 0,
+    "horizon_min": 0,
+    "horizon_max": 147,
+    "queries_with_no_reachable_evaluated_depth": 7,
+    "evaluated_depths": [
+      1,
+      5,
+      10,
+      20
+    ],
+    "finding": "The advisory layer's reach is inverse to lexical success. Where stage 1 returned 20 or more documents it is structurally silent at every evaluated depth; where it returned one or two, the advisory layer can act from depth 5 down. The neural layer can only speak where lexical retrieval did badly, and is provably mute where it did well - which is what append-only subordination means, stated as a measurement rather than a design intention.",
+    "second_finding": "A reachable horizon is necessary but not sufficient. The three out-of-vocabulary queries have |D| = 0, so by horizon alone the advisory layer could occupy every position - and it proposes nothing, because anchor-mode search takes its anchors from D. Anchor starvation is a separate bound from the horizon, and a recall figure on those queries would measure the starvation rather than the provider.",
+    "why_it_matters_for_M2": "A quality comparison at any depth <= min(|D|) is guaranteed to show zero difference between provider on and off. Reporting that as a finding about neural retrieval would be a category error, and this table is what makes the error visible in advance."
   }
 }

@@ -347,3 +347,79 @@ def _falsify_docs_fail_on_missing_placeholder() -> None:
 
 FALSIFIERS["docs_are_generated"] = _falsify_docs_are_generated
 FALSIFIERS["docs_fail_on_missing_placeholder"] = _falsify_docs_fail_on_missing_placeholder
+
+
+# --------------------------------------------------------------------------
+# M2.0 - the quality harness
+# --------------------------------------------------------------------------
+
+def _falsify_quality_ranks_detect_reordering() -> None:
+    """Make the rank tuple order-insensitive: the 'simplification' to fear.
+
+    Reports the ranks sorted by node id rather than by position, so a ranking
+    and its exact reversal produce the same tuple - reintroducing precisely
+    the ordering blindness that M1 measured in Jaccard and that this field
+    exists to escape.
+    """
+    import drf.bench.quality as quality
+
+    real = quality.judge
+
+    def order_blind_judge(ranking, labels, *, depth, threshold=quality.RELEVANCE_THRESHOLD):
+        judged = real(ranking, labels, depth=depth, threshold=threshold)
+        truncated = list(ranking[:depth])
+        relevant = {n for n, g in labels.items() if g >= threshold}
+        by_id = sorted(n for n in truncated if n in relevant)
+        return judged._replace(
+            ranks_of_relevant=tuple(
+                truncated.index(n) + 1 for n in sorted(by_id)
+            )[:len(judged.ranks_of_relevant)]
+        )
+
+    quality.judge = order_blind_judge
+
+
+def _falsify_quality_labels_reject_conflicts() -> None:
+    """Last-wins: what plain dict assignment does once the check is removed."""
+    import drf.bench.labels as labels_module
+
+    def tolerant_collate(labels, *, known_query_ids=None, known_node_ids=None):
+        grouped: dict = {}
+        for label in labels:
+            grouped.setdefault(label.query_id, {})[label.node_id] = label.grade
+        return labels_module.LabelSet(
+            by_query=grouped,
+            labels_hash=labels_module.hash_labels(grouped),
+            count=sum(len(v) for v in grouped.values()),
+        )
+
+    labels_module.collate = tolerant_collate
+
+
+def _falsify_quality_unknown_label_rejected() -> None:
+    """Skip unresolvable judgements - the tolerance that raises measured recall."""
+    import drf.bench.labels as labels_module
+
+    real = labels_module.collate
+
+    def skipping_collate(labels, *, known_query_ids=None, known_node_ids=None):
+        kept = [
+            label for label in labels
+            if known_node_ids is None or label.node_id in known_node_ids
+        ]
+        return real(kept, known_query_ids=known_query_ids, known_node_ids=known_node_ids)
+
+    labels_module.collate = skipping_collate
+
+
+def _falsify_advisory_horizon_is_live() -> None:
+    """A horizon beyond every depth: the bound turned into an alibi."""
+    import drf.bench.quality as quality
+
+    quality.advisory_horizon = lambda deterministic: 10_000
+
+
+FALSIFIERS["quality_ranks_detect_reordering"] = _falsify_quality_ranks_detect_reordering
+FALSIFIERS["quality_labels_reject_conflicts"] = _falsify_quality_labels_reject_conflicts
+FALSIFIERS["quality_unknown_label_rejected"] = _falsify_quality_unknown_label_rejected
+FALSIFIERS["advisory_horizon_is_live"] = _falsify_advisory_horizon_is_live

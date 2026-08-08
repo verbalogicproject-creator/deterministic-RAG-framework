@@ -144,6 +144,34 @@
       "asserts": "Rendering a template whose placeholder the context does not supply raises KeyError.",
       "falsifier": "Use Template.safe_substitute instead of substitute.",
       "why_this_falsifier": "safe_substitute is the more forgiving call and the one a well-meaning edit would reach for. It leaves an unresolved $placeholder in the prose, so the document reads as finished while carrying a hole where a number should be - which is precisely how the source project came to publish figures nothing produced."
+    },
+    {
+      "id": "quality_ranks_detect_reordering",
+      "test": "tests/test_quality.py::test_ranks_of_relevant_does_tell_them_apart_and_does_it_in_integers",
+      "asserts": "ranks_of_relevant distinguishes a ranking from its exact reversal, in integers, where recall cannot.",
+      "falsifier": "Return the relevant documents' ranks sorted by node id rather than by rank - the shape the tuple takes if someone 'simplifies' it toward a set.",
+      "why_this_falsifier": "The realistic regression is not deleting the field but quietly making it order-insensitive, which is exactly the blindness M1 measured in Jaccard and which this field exists to escape."
+    },
+    {
+      "id": "quality_labels_reject_conflicts",
+      "test": "tests/test_quality.py::test_divergent_judgements_for_the_same_pair_are_an_error",
+      "asserts": "Two judgements of the same query/document pair at different grades raise rather than resolving.",
+      "falsifier": "Take the last judgement seen, the ordinary dict-assignment behaviour.",
+      "why_this_falsifier": "Last-wins is what the code does if the conflict check is ever removed for convenience, and it makes the score depend on file order while destroying the evidence that two sittings disagreed."
+    },
+    {
+      "id": "quality_unknown_label_rejected",
+      "test": "tests/test_quality.py::test_an_unknown_node_id_is_an_error_not_a_dropped_row",
+      "asserts": "A judgement naming a node id absent from the index raises rather than being skipped.",
+      "falsifier": "Skip unresolvable judgements, the tolerant behaviour that looks like robustness.",
+      "why_this_falsifier": "This is the failure mode that flatters the result: a dropped judgement shrinks the recall denominator, so tolerating typos raises measured recall. A validation step whose failure mode improves the numbers is worse than none."
+    },
+    {
+      "id": "advisory_horizon_is_live",
+      "test": "tests/test_quality.py::test_advisory_reach_is_inverse_to_lexical_success",
+      "asserts": "advisory_horizon returns |D| per query, so the depths the advisory layer can reach are computed rather than assumed.",
+      "falsifier": "Return a large constant, making every depth look structurally unreachable.",
+      "why_this_falsifier": "A horizon that is always beyond the evaluation depth would silently excuse the advisory layer from every measurement while the tests continued to pass - the bound would become an alibi instead of a fact."
     }
   ],
   "not_falsified": [
