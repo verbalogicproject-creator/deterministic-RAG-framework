@@ -492,19 +492,29 @@ def test_source_has_no_node_collisions(source_conn):
 # --------------------------------------------------------------------------
 
 def _import_all_action_modules() -> None:
-    """Populate ACTIONS from every module that defines one.
+    """Import every module under `drf/`, so ACTIONS is fully populated.
 
     Registration is an import side effect, so without this the two tests below
     would measure *which test modules happened to be collected* rather than
     what the package implements - passing in a full run and failing when
-    `test_ingest.py` is run alone. Importing explicitly makes them independent
-    of collection order.
+    `test_ingest.py` is run alone.
+
+    **Walks the package rather than listing modules.** The first version of
+    this helper hand-listed five modules and then silently went stale: M1.4
+    added `drf.retrieval.neural` and nobody updated the list, so
+    `neural.propose_from_anchors` looked unimplemented whenever this file ran
+    alone. A hand-maintained list drifting is precisely the failure the helper
+    exists to prevent, so it no longer keeps one.
     """
-    import drf.ingest.build  # noqa: F401
-    import drf.retrieval.graph  # noqa: F401
-    import drf.retrieval.lexical  # noqa: F401
-    import drf.retrieval.stage1  # noqa: F401
-    import drf.retrieval.tokenize  # noqa: F401
+    import importlib
+    import pkgutil
+
+    import drf
+
+    for module in pkgutil.walk_packages(drf.__path__, prefix="drf."):
+        # providers/base.py defines a Protocol only; importing everything is
+        # still correct - a module with no @action simply registers nothing.
+        importlib.import_module(module.name)
 
 
 def test_registered_actions_appear_in_spec_with_matching_axes():

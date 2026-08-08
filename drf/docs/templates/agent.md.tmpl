@@ -77,7 +77,14 @@ $sensitivity_table
   looks at**. Patching shared machinery can remove the broken case from the
   test's own iteration set.
 - Action registration is an import side effect, so registry tests must import
-  the modules themselves or they measure collection order.
+  the modules themselves or they measure collection order. **Walk the package;
+  never hand-list modules.** A hand-written list drifted once already — M1.4
+  added `drf.retrieval.neural` and nothing noticed until a file was run alone.
+- **Falsifiers cannot catch order-dependent tests.** Each one runs a single
+  test in a subprocess that inherits the same import state, so a test passing
+  only because another module was collected first looks healthy. Run
+  `./tools/check_isolation.sh` — it is the only thing that finds these, and a
+  full `pytest tests/` run cannot, by definition.
 - Rank fusion (RRF) is the ecosystem's default advice and appears throughout the
   recovered playbooks. It is rejected here: it grants authority to the advisory
   side.
