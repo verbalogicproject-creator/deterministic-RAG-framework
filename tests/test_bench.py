@@ -41,7 +41,12 @@ from drf.bench import metrics, repro  # noqa: E402
 from drf.contract import reset_replay_log  # noqa: E402
 from drf.ingest.build import build_index  # noqa: E402
 
-SOURCE = "/home/eyaln/Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"
+# Override with DRF_SOURCE_DB. Hardcoding an absolute path would publish a
+# username and make every test skip for anyone else who clones this.
+SOURCE = os.environ.get(
+    "DRF_SOURCE_DB",
+    str(Path.home() / "Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"),
+)
 
 requires_source = pytest.mark.skipif(
     not os.path.exists(SOURCE), reason=f"source corpus not present at {SOURCE}"

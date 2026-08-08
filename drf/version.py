@@ -23,3 +23,8 @@ ID_SCHEMA_VERSION = 1
 
 # Manifest format version.
 MANIFEST_VERSION = 1
+
+# The released version. Bumped on every push; recorded in spec/frozen.json by
+# `drf freeze`, so a tag names an exact spec, index and result set rather than
+# just a commit.
+RELEASE_VERSION = "0.0.1"

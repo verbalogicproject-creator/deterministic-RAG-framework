@@ -1,10 +1,10 @@
 # Deterministic RAG — Progress Report & Source of Truth
 
 **Date:** 2026-08-07
-**Status:** M1.0 complete (23/23 tests green). Framework scaffolded at `/home/eyaln/Documents/Deterministic-RAG-Framework/`.
+**Status:** M1.0 complete (23/23 tests green). Framework scaffolded at `~/Documents/Deterministic-RAG-Framework/`.
 **Purpose:** Persistent system atlas, plan, and context. This document supersedes any claim made in the recovered source project's own documentation.
 
-> **Reading order for a fresh session:** this file → `STATE.md` (resume point) → `/home/eyaln/.claude/plans/plan-step-1-out-crystalline-firefly.md` (full build plan).
+> **Reading order for a fresh session:** this file → `STATE.md` (resume point) → `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` (full build plan).
 
 ---
 
@@ -92,7 +92,7 @@ Also holding divergent copies: `~/Downloads/kg-truth/Knowledge-Graphs/` and `~/D
 
 ## 1.5 The BGE endpoint — measured
 
-`http://10.161.19.239:8080` — llama.cpp serving **BAAI/bge-large-en-v1.5 Q4_0 GGUF** from an Android path.
+`http://<bge-host>:8080  (private LAN address, redacted)` — llama.cpp serving **BAAI/bge-large-en-v1.5 Q4_0 GGUF** from an Android path.
 
 | Property | Measured value |
 |---|---|

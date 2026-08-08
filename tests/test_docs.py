@@ -40,7 +40,12 @@ from drf.docs.render import (  # noqa: E402
 )
 from drf.ingest.build import build_index  # noqa: E402
 
-SOURCE = "/home/eyaln/Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"
+# Override with DRF_SOURCE_DB. Hardcoding an absolute path would publish a
+# username and make every test skip for anyone else who clones this.
+SOURCE = os.environ.get(
+    "DRF_SOURCE_DB",
+    str(Path.home() / "Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"),
+)
 
 requires_source = pytest.mark.skipif(
     not os.path.exists(SOURCE), reason=f"source corpus not present at {SOURCE}"
@@ -73,9 +78,12 @@ def test_committed_docs_match_a_fresh_render(context):
     regenerated the files first, it would compare a fresh render against
     itself and could never fail.
     """
+    from drf.docs.render import OUTPUT_PATHS
+
     rendered = render_all(context)
     for audience, expected in rendered.items():
-        path = OUTPUT_DIR / f"{audience}.md"
+        relative = OUTPUT_PATHS.get(audience)
+        path = (ROOT / relative) if relative else OUTPUT_DIR / f"{audience}.md"
         assert path.exists(), (
             f"{path} is missing; run `drf docs build --index index.db`"
         )
@@ -88,15 +96,25 @@ def test_committed_docs_match_a_fresh_render(context):
 
 
 def test_every_audience_has_a_template_and_a_rendered_file():
-    assert len(AUDIENCES) == 4
+    """Five audiences. README is generated too - the landing page is the most
+    likely place for a stale number to sit unchallenged."""
+    from drf.docs.render import OUTPUT_PATHS
+
+    assert len(AUDIENCES) == 5
     for audience in AUDIENCES:
         assert (TEMPLATE_DIR / f"{audience}.md.tmpl").exists()
-        assert (OUTPUT_DIR / f"{audience}.md").exists()
+        relative = OUTPUT_PATHS.get(audience)
+        path = (ROOT / relative) if relative else OUTPUT_DIR / f"{audience}.md"
+        assert path.exists(), f"{path} not rendered"
 
 
 def test_rendered_files_carry_the_do_not_edit_banner():
+    from drf.docs.render import OUTPUT_PATHS
+
     for audience in AUDIENCES:
-        text = (OUTPUT_DIR / f"{audience}.md").read_text()
+        relative = OUTPUT_PATHS.get(audience)
+        path = (ROOT / relative) if relative else OUTPUT_DIR / f"{audience}.md"
+        text = path.read_text()
         assert text.startswith(BANNER.split("\n")[0])
         assert "DO NOT EDIT" in text
 

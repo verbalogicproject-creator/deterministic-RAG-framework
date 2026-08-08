@@ -48,7 +48,12 @@ from drf.retrieval.providers.stored_vectors import StoredVectorProvider  # noqa:
 from drf.retrieval.tokenize import tokenize  # noqa: E402
 from drf.store import connect, iter_nodes, read_manifest  # noqa: E402
 
-SOURCE = "/home/eyaln/Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"
+# Override with DRF_SOURCE_DB. Hardcoding an absolute path would publish a
+# username and make every test skip for anyone else who clones this.
+SOURCE = os.environ.get(
+    "DRF_SOURCE_DB",
+    str(Path.home() / "Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"),
+)
 
 requires_source = pytest.mark.skipif(
     not os.path.exists(SOURCE), reason=f"source corpus not present at {SOURCE}"

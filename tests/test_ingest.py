@@ -57,7 +57,12 @@ from drf.store import (  # noqa: E402
     table_count,
 )
 
-SOURCE = "/home/eyaln/Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"
+# Override with DRF_SOURCE_DB. Hardcoding an absolute path would publish a
+# username and make every test skip for anyone else who clones this.
+SOURCE = os.environ.get(
+    "DRF_SOURCE_DB",
+    str(Path.home() / "Downloads/claude-cookbook-kg3/claude-cookbook-kg.db"),
+)
 
 # Measured, not assumed. See module docstring.
 MEASURED_DUPLICATE_GROUPS = 48

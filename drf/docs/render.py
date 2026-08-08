@@ -31,6 +31,7 @@ from ..version import (
     MANIFEST_VERSION,
     PARSER_VERSION,
     RANKER_VERSION,
+    RELEASE_VERSION,
 )
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -38,7 +39,12 @@ SPEC_DIR = ROOT / "spec"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 OUTPUT_DIR = ROOT / "docs"
 
-AUDIENCES = ("peer", "agent", "operator", "plain")
+AUDIENCES = ("peer", "agent", "operator", "plain", "readme")
+
+# `readme` lands at the repository root, because that is the page a visitor
+# sees first and therefore the most likely place for a stale number to sit
+# unchallenged. Generating it means it cannot carry one.
+OUTPUT_PATHS = {"readme": "README.md"}
 
 BANNER = (
     "<!-- GENERATED FILE - DO NOT EDIT.\n"
@@ -175,12 +181,15 @@ def build_context(index_path: str | None = None) -> dict:
     }
 
     context["spec_sha"] = _spec_sha()
+    context["spec_sha_short"] = str(context["spec_sha"])[:12]
+    context["release"] = RELEASE_VERSION
 
     if index_path:
         context.update(_index_facts(index_path))
     else:
         context.update({
             "content_hash": "(no index supplied at render time)",
+            "content_hash_short": "(none)",
             "node_count": "?", "edge_count": "?", "embedding_count": "?",
             "term_count": "?", "posting_count": "?", "avgdl": "?",
         })
@@ -188,13 +197,16 @@ def build_context(index_path: str | None = None) -> dict:
 
 
 def _spec_sha() -> str:
-    """One hash over every spec file, so a doc can name the spec it came from."""
-    from ..hashing import sha256_value
+    """One hash over every spec file, so a doc can name the spec it came from.
 
-    return sha256_value({
-        path.name: json.load(open(path))
-        for path in sorted(SPEC_DIR.glob("*.json"))
-    })
+    Delegates to `drf.freeze.spec_sha` rather than recomputing. A second
+    implementation of the same hash immediately disagreed with the first: this
+    one globbed every spec/*.json including `frozen.json`, which `freeze` must
+    exclude because that file *contains* the hash. One concept, one definition.
+    """
+    from ..freeze import spec_sha
+
+    return spec_sha()
 
 
 def _index_facts(index_path: str) -> dict:
@@ -205,6 +217,7 @@ def _index_facts(index_path: str) -> dict:
     n_docs, total_len = corpus_totals(conn)
     facts = {
         "content_hash": manifest["content_hash"],
+        "content_hash_short": manifest["content_hash"][:12],
         "node_count": table_count(conn, "nodes"),
         "edge_count": table_count(conn, "edges"),
         "embedding_count": table_count(conn, "embeddings"),
@@ -235,7 +248,8 @@ def write_all(context: dict, output_dir: Path | None = None) -> list[Path]:
     directory.mkdir(parents=True, exist_ok=True)
     written = []
     for audience, text in render_all(context).items():
-        path = directory / f"{audience}.md"
+        relative = OUTPUT_PATHS.get(audience)
+        path = (ROOT / relative) if relative else directory / f"{audience}.md"
         path.write_text(text)
         written.append(path)
     return written

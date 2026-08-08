@@ -1,7 +1,7 @@
 # Project State — resume here
 
 **Last checkpoint:** M1.0 complete, 23/23 tests green (2026-08-07)
-**Full build plan:** `/home/eyaln/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
+**Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
 
@@ -34,7 +34,7 @@ The recovered source project's documentation is **systematically unreliable**. V
 
 ## BGE endpoint — measured, not assumed
 
-`http://10.161.19.239:8080` — llama.cpp serving **BAAI/bge-large-en-v1.5 Q4_0 GGUF** from an Android path.
+`http://<bge-host>:8080  (private LAN address, redacted)` — llama.cpp serving **BAAI/bge-large-en-v1.5 Q4_0 GGUF** from an Android path.
 
 - `POST /v1/embeddings` `{"input": ..., "model":"bge"}` → **dim 1024, already L2-normalised** (cosine = dot product, no numpy needed), ~0.1–0.3 s
 - **Measured deterministic:** 5 sequential identical requests → byte-identical; single-input vs in-batch → byte-identical
@@ -351,7 +351,61 @@ It also fired for real during development: adding entries to `spec/invariants.js
 | `operator.md` | you | every command, what each proves, how to check the prefix guarantee yourself |
 | `plain.md` | non-technical reader | no jargon (asserted: no "BM25", "idf", "injective", "postings", "sha256") |
 
-## Next: M1.8 — freeze
+## M1.8 ✅ — freeze
+
+```
+drf/freeze.py           spec_sha + manifest_hash + bench_digest
+spec/frozen.json        the release record, committed
+drf/docs/templates/readme.md.tmpl   README is a fifth generated audience
+tools/drf freeze write|verify
+tests/test_freeze.py    8 tests
+```
+
+```
+release        0.0.1
+spec_sha       77302e076be0b25173227381b0b7426e35180abd11ddd8301ca325e273e96b97
+manifest_hash  90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a
+bench_digest   5053fe6600b21201756c5046995c063ffa4566c97002692c8d5566ea112fec88
+queries        23
+```
+
+**A git tag pins the code; it does not pin the answers.** A result depends on three things, and a commit pins one. `drf freeze verify` rebuilds from source and checks all three.
+
+**The bench digest is the load-bearing component.** Spec and index hashes prove the *inputs* are unchanged; only the digest proves the *outputs* are. A refactor that alters ranking while leaving both inputs untouched would pass an input-hash-only check — `test_bench_digest_is_the_component_that_catches_a_ranking_change` constructs exactly that case and requires it caught.
+
+**README is now generated** (fifth audience, rendered to repo root). The landing page is the most likely place for a stale number to sit unchallenged.
+
+### Gaps found and fixed while implementing
+
+| Gap | Fix |
+|---|---|
+| **Two implementations of `spec_sha` disagreed.** `render.py` globbed every `spec/*.json` including `frozen.json`; `freeze.py` must exclude it, because that file *contains* the hash. | `render.py` delegates to `freeze.spec_sha()`. One concept, one definition. |
+| `verify()` stopping at the first mismatch would hide later ones | Returns all differences; a test asserts all four are reported |
+
+## Release process
+
+```bash
+./tools/drf build --source <src> --out index.db     # rebuild
+./tools/drf docs build --index index.db             # regenerate all 5 docs
+./tools/drf freeze write --index index.db           # record the three hashes
+python3 -m pytest tests/ -q                         # 208 tests
+./tools/check_isolation.sh                          # order-dependence guard
+git tag v<version> && git push --tags
+```
+
+Bump `RELEASE_VERSION` in `drf/version.py` **before** `freeze write` — a test asserts the frozen release matches the code.
+
+## Milestone 1 complete. Next: M2
+
+**Recommended reordering, from the M1.5/M1.6 findings.** Start M2 with **relevance labels**, not features. Three decisions are currently blocked on having no ground truth:
+
+1. whether to add a weighted lexical+graph score (deferred deliberately — a weight chosen now is unfalsifiable)
+2. whether graph-reached documents with no matching term should enter D at all
+3. **whether the graph layer earns its place** — it reorders only 2 of 23 queries against `ranking.b`'s 13
+
+Building more retrieval before labels means settling those by taste. Even ~50 hand-judged pairs converts three guesses into three measurements. BGE re-embedding and the remote provider follow *after* — they cannot be evaluated without labels either.
+
+## M1.7 planning record
 
 Tag; record `spec_sha`, manifest hash and bench digest in `docs/peer.md`. Most of this already renders — `spec_sha` and `content_hash` are in the context. The remaining work is a `drf freeze` that captures the triple and a test that the recorded values match a live rebuild.
 

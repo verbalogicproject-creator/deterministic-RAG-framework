@@ -13,17 +13,27 @@
 #
 #   ./tools/check_isolation.sh
 #
+#
+# Failure detail is written to a log rather than only printed. A previous run
+# reported a failure whose per-file lines were lost to a `| tail -3` in the
+# calling command, leaving nothing to act on. A check you cannot read the
+# output of is not a check.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+LOG="${TMPDIR:-/tmp}/drf-isolation.log"
+: > "$LOG"
+
 failed=0
 for file in tests/test_*.py; do
-    output=$(python3 -m pytest "$file" -q -p no:cacheprovider 2>&1 | tail -1)
-    if [[ "$output" == *"failed"* || "$output" == *"error"* ]]; then
-        printf '  FAIL  %-28s %s\n' "$(basename "$file")" "$output"
+    full=$(python3 -m pytest "$file" -q -p no:cacheprovider 2>&1)
+    summary=$(printf '%s\n' "$full" | tail -1)
+    if [[ "$summary" == *"failed"* || "$summary" == *"error"* ]]; then
+        printf '  FAIL  %-28s %s\n' "$(basename "$file")" "$summary"
+        { echo "=== $file ==="; printf '%s\n' "$full"; } >> "$LOG"
         failed=1
     else
-        printf '  ok    %-28s %s\n' "$(basename "$file")" "$output"
+        printf '  ok    %-28s %s\n' "$(basename "$file")" "$summary"
     fi
 done
 
@@ -32,7 +42,10 @@ if [[ $failed -eq 1 ]]; then
     echo "At least one file fails in isolation but passes in a full run."
     echo "That is an order-dependent test: it measures collection order, not"
     echo "behaviour. Fix the test, not the ordering."
+    echo
+    echo "Full output: $LOG"
     exit 1
 fi
 echo
 echo "All files pass in isolation."
+echo "(run serially - do not run concurrently with another pytest invocation)"
