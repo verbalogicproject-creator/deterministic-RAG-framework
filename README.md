@@ -13,7 +13,7 @@ is mechanically prevented from changing an authoritative result. It can only
 append below one.
 
 ```
-release 0.0.1 · spec 77302e076be0 · index 90ab5db96958
+release 0.0.2 · spec 77302e076be0 · index 90ab5db96958
 Python 3.12+ · standard library only · no dependencies
 ```
 

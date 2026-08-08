@@ -395,7 +395,66 @@ git tag v<version> && git push --tags
 
 Bump `RELEASE_VERSION` in `drf/version.py` **before** `freeze write` — a test asserts the frozen release matches the code.
 
-## Milestone 1 complete. Next: M2
+## M2 GATE — run 2026-08-08, after M1 completed
+
+**Yes, M1 changes the M2 roadmap. Four structural findings, not just refinements.**
+
+### ⚠️ 1. Subordination *bounds what M2 can measure*. This is the big one.
+
+The neural layer can only **append below D**. It therefore **cannot improve precision@1, nDCG@5, or MRR — ever, by construction.** Those numbers will be byte-identical with the provider on and off, because that is the guarantee working.
+
+Anyone evaluating at shallow depth will measure exactly zero benefit and conclude the neural layer is useless. That would be a **measurement artefact, not a finding.**
+
+M2 must evaluate the advisory layer only where it can act:
+
+| metric | can neural affect it? |
+|---|---|
+| precision@1, nDCG@5, MRR | **No — structurally impossible** |
+| recall@k for k > \|D\| | **Yes — the only place it can help** |
+| coverage of relevant docs absent from D | **Yes — the honest question** |
+
+The real question for the advisory layer is *"does it find relevant documents that lexical retrieval missed entirely?"* Nothing else.
+
+### ⚠️ 2. The "exact integers" rule does not transfer — a new discipline is needed
+
+nDCG and recall are inherently floats; they cannot be asserted as exact integers. M1's central assertion discipline **does not carry into M2**, and pretending otherwise would be worse than admitting it.
+
+M1 measured why this matters: the chaos control scored Kendall's Tau **0.9761** while being provably broken. A quality metric that moves 0.97 → 0.98 says nothing on its own.
+
+**Replacement discipline for M2:** assert on **rank positions (integers)** and **counts of relevant documents retrieved (integers)**; report nDCG as a float for humans; and require any improvement claim to clear a **stated margin against a control**, never a bare comparison.
+
+### ⚠️ 3. Recall@k is a set metric — M1 proved set metrics are blind to ordering
+
+Jaccard reported **1.0000** for a pipeline returning five different orderings in five runs. Recall@k has the same blindness. M2 must never report recall alone; always pair it with a rank-sensitive metric, or it will silently discard everything M1 established about ordering.
+
+### ⚠️ 4. The falsifier pattern transfers, but needs restating
+
+You cannot falsify "nDCG improved" by mutating code. The M2 analogue is the **chaos control generalised**: score a deliberately-bad ranker (random order, or the chaos ranker already implemented) and require the real one to beat it by a stated margin. If it doesn't, the evaluation is measuring noise. Build this **before** the first quality number is quoted.
+
+### Reordered M2 plan
+
+| step | why this order |
+|---|---|
+| **M2.0** Evaluation harness + control | Before any labels. If a random ranker scores well on the harness, the harness is wrong. |
+| **M2.1** Relevance labels | ~50 graded query/document pairs. Unblocks all three deferred decisions. |
+| **M2.2** Answer the three deferred questions | weighted `s1_q`; graph-only candidates in D; **does the graph layer earn its place** (reorders 2/23 vs `ranking.b` 13/23) |
+| **M2.3** Re-embed with BGE, then compare | ReproRAG found embedding choice dominates variance — so switch *after* labels exist, or the change cannot be evaluated |
+| **M2.4** Remote provider | Needs 2.3; least urgent despite being most interesting |
+
+### Corpus-size warning for labelling
+
+266 documents with ~20 candidates per query means IR metrics **saturate easily and are noisy**. Expect wide error bars. Either accept them explicitly, or plan a larger evaluation corpus — and note that a larger corpus hits M3's un-truncated posting-union sooner than planned.
+
+### Carried forward unchanged
+
+- RRF stays rejected (grants authority to the advisory side)
+- FTS5 triggers from the old project must **not** be lifted verbatim
+- `./tools/check_isolation.sh` after any new test file — falsifiers cannot catch order-dependence
+- Every checkpoint needs a falsifier registered **before** it is trusted
+
+---
+
+## Milestone 1 complete
 
 **Recommended reordering, from the M1.5/M1.6 findings.** Start M2 with **relevance labels**, not features. Three decisions are currently blocked on having no ground truth:
 
