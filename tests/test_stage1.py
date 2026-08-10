@@ -416,3 +416,45 @@ def test_admission_cannot_rescue_an_out_of_vocabulary_query(index):
             index_hash=index["hash"], admit_graph_candidates=True,
         )
         assert value == [], query["id"]
+
+
+@requires_source
+def test_the_nuisance_screen_can_reject_a_deliberately_unsafe_graph_signal(index):
+    """The positive control. Without it, CLEAN is a claim about the screen.
+
+    Same architecture, same admission, same sort key - only the admitted tail
+    is ordered by degree instead of depth, reproducing the parent-boost
+    pathology inside drf's own ordering. The screen must separate the two.
+
+    Skipped when `mud_detection` is absent, because drf takes no dependency on
+    it. A skip is honest; silently passing would not be.
+    """
+    pytest.importorskip("mud_detection")
+    import importlib.util
+
+    from mud_detection import interference
+
+    spec = importlib.util.spec_from_file_location(
+        "mgc", ROOT / "tools" / "measure_graph_contribution.py"
+    )
+    mgc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mgc)
+
+    conn = index["conn"]
+    degrees = mgc.degree_map(conn)
+    queries = load_queries()
+    base = {q["id"]: mgc.rank(conn, q["text"], with_graph=False) for q in queries}
+    unsafe = {q["id"]: mgc.unsafe_degree_ordered(conn, q["text"], degrees)
+              for q in queries}
+
+    verdict = interference.assess(unsafe, base, degrees, name="degree")
+    assert verdict.verdict != "CLEAN", (
+        "the nuisance screen passed a signal built to be caught by it; a CLEAN "
+        f"verdict elsewhere therefore proves nothing. rho={verdict.rho}"
+    )
+    assert verdict.rho > 0.3, verdict.rho
+
+    # The sibling half: the real signal must NOT be flagged, or the screen is
+    # simply rejecting everything and the separation means nothing either.
+    real = {q["id"]: mgc.rank(conn, q["text"], with_graph=True) for q in queries}
+    assert interference.assess(real, base, degrees, name="degree").verdict == "CLEAN"

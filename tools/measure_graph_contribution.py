@@ -39,10 +39,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from drf.bench.repro import load_queries                       # noqa: E402
 from drf.retrieval import bm25, graph, stage1                   # noqa: E402
+from drf.retrieval.stage1 import (graph_only_candidates,        # noqa: E402
+                                  rank_candidates)
 from drf.retrieval.tokenize import tokenize                     # noqa: E402
 from drf.store import (connect, corpus_totals, df_for_terms,    # noqa: E402
                        doc_lengths, iter_edges, iter_nodes,
                        postings_for_terms, read_manifest)
+
+
+def _parts(conn, text: str):
+    """BM25 scores, the depth map, and document lengths for one query."""
+    terms = tokenize(text)
+    n_docs, total_len = corpus_totals(conn)
+    doc_lens = doc_lengths(conn)
+    scored = bm25.score_documents(
+        postings=postings_for_terms(conn, terms),
+        dfs=df_for_terms(conn, terms), doc_lens=doc_lens,
+        n_docs=n_docs, total_len=total_len, k1=bm25.K1, b=bm25.B,
+    )
+    seeds = stage1.select_seeds(scored, stage1.DEFAULT_SEED_COUNT)
+    depths = graph.expand(conn, seeds, stage1.DEFAULT_MAX_DEPTH) if seeds else {}
+    return scored, depths, doc_lens
 
 
 def rank(conn, text: str, *, with_graph: bool) -> list[str]:
@@ -66,6 +83,36 @@ def rank(conn, text: str, *, with_graph: bool) -> list[str]:
         seeds = stage1.select_seeds(scored, stage1.DEFAULT_SEED_COUNT)
         depths = graph.expand(conn, seeds, stage1.DEFAULT_MAX_DEPTH) if seeds else {}
     return [r.node_id for r in stage1.rank_candidates(scored, depths)]
+
+
+def unsafe_degree_ordered(conn, text: str, degrees: dict[str, int]) -> list[str]:
+    """The **positive control**: a deliberately unsafe graph signal.
+
+    A screen that only ever returns CLEAN proves nothing - the same lesson the
+    chaos control taught in M1.6, where every reproducibility metric scored 1.0
+    and only a deliberately broken pipeline showed the harness could report
+    failure. Layer 3 returned CLEAN for drf's graph layer twice. Without a
+    signal it is *known* to reject, that verdict is a claim about the screen.
+
+    So: identical architecture, identical admission, identical sort key. The
+    only change is that the admitted tail is ordered by **degree** instead of
+    by `best_depth`. That is the parent-boost pathology reproduced inside drf's
+    own ordering - promote the well-connected rather than the relevant - and it
+    is the narrowest possible edit that makes the signal unsafe.
+
+    Note what this construction also demonstrates: the pathology can only be
+    built *inside the admitted tail*. The sort key opens with `-bm25_q`, so no
+    amount of connectivity can lift an unmatched document above a matched one.
+    drf's architecture confines the failure mode to the one region where every
+    document already scored zero.
+    """
+    scored, depths, doc_lens = _parts(conn, text)
+    admitted = graph_only_candidates(scored, depths, doc_lens)
+    # High degree -> low pseudo-depth -> sorts earlier, since best_depth is the
+    # third key component and ascends.
+    rigged = {**depths,
+              **{s.node_id: 1000 - degrees.get(s.node_id, 0) for s in admitted}}
+    return [r.node_id for r in rank_candidates(scored + admitted, rigged)]
 
 
 def degree_map(conn) -> dict[str, int]:
@@ -130,7 +177,23 @@ def main() -> int:
         nuisance = interference.assess(candidate, base, degrees, name="degree")
         per_query = correlate.per_query_rho(candidate, base)
         non_empty = {k: v for k, v in per_query.items() if base[k]}
+        control = {q["id"]: unsafe_degree_ordered(conn, q["text"], degrees)
+                   for q in queries}
+        admitted = {
+            q["id"]: [r.node_id for r in rank_candidates(
+                (lambda p: p[0] + graph_only_candidates(*p))(_parts(conn, q["text"])),
+                _parts(conn, q["text"])[1])]
+            for q in queries
+        }
+        control_report = interference.assess(control, base, degrees, name="degree")
+        admitted_report = interference.assess(admitted, base, degrees, name="degree")
         report["layers"] = {
+            "positive_control_verdict": control_report.verdict,
+            "positive_control_rho": control_report.rho,
+            "admitted_tail_verdict": admitted_report.verdict,
+            "admitted_tail_rho": admitted_report.rho,
+            "screen_separates_safe_from_unsafe":
+                control_report.verdict != admitted_report.verdict,
             "redundancy_verdict": "REDUNDANT" if redundancy.redundant else "COMPLEMENTARY",
             "redundancy_why": redundancy.why,
             "rho_mean_all": redundancy.rho_mean,
@@ -171,6 +234,15 @@ def main() -> int:
         print(f"               {layers['queries_rho_exactly_1']} queries rank-identical")
         print(f"  nuisance     {layers['nuisance_verdict']}  (degree)")
         print(f"               {layers['nuisance_why']}")
+        print("\n  positive control - the same signal made deliberately unsafe")
+        print("  (admitted tail ordered by degree instead of depth):")
+        print(f"    drf tail      rho {layers['admitted_tail_rho']:+.4f}  "
+              f"{layers['admitted_tail_verdict']}")
+        print(f"    UNSAFE tail   rho {layers['positive_control_rho']:+.4f}  "
+              f"{layers['positive_control_verdict']}")
+        print(f"    screen separates them: "
+              f"{layers['screen_separates_safe_from_unsafe']}")
+        print("    Without this, a CLEAN verdict is a claim about the screen.")
         print("\n  Read the redundancy verdict with care: this signal is a TIEBREAK, so")
         print("  it cannot introduce a document and complementarity is 0 by construction.")
         print("  The ablation above is the load-bearing evidence, not layer 2.")

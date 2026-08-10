@@ -302,6 +302,19 @@
     "mud_detection_verdict": "REDUNDANT. complementarity 0.0000, rescue_rate 0.0, rho_mean 0.726. Item sets genuinely differ here, so unlike the tiebreak case this verdict is a measurement rather than a structural artefact.",
     "nuisance_verdict": "CLEAN (rho -0.017, promoted/corpus degree ratio 1.00x). Not the parent-boost pathology - simply no benefit.",
     "sensitivity": "Reorders 20 of 23 queries - the largest blast radius of any setting in the system, exceeding ranking.b's 13. Maximum disruption, zero measured gain.",
-    "decision": "Implemented, tested, invariant-checked, and DEFAULT OFF. Enabling it would be the exact failure mud-detection exists to prevent: an architecturally reasonable change that wins no recall, and here it would additionally silence the advisory layer. The evidence, not the reasoning, decides the default."
+    "decision": "Implemented, tested, invariant-checked, and DEFAULT OFF. Enabling it would be the exact failure mud-detection exists to prevent: an architecturally reasonable change that wins no recall, and here it would additionally silence the advisory layer. The evidence, not the reasoning, decides the default.",
+    "positive_control": {
+      "why": "Layer 3 returned CLEAN for every real drf configuration. A screen that only ever returns CLEAN is a claim about the screen. The chaos-control lesson from M1.6, applied to a borrowed tool.",
+      "construction": "Identical architecture, admission and sort key; only the admitted tail is ordered by node degree instead of best_depth - the parent-boost pathology reproduced inside drf's own ordering.",
+      "drf_tail_rho": 0.0288,
+      "unsafe_tail_rho": 0.6394,
+      "drf_verdict": "CLEAN",
+      "unsafe_verdict": "NUISANCE_CORRELATED",
+      "separates": true,
+      "note": "The pathology can only be constructed INSIDE the admitted tail. The sort key opens with -bm25_q, so no amount of connectivity lifts an unmatched document above a matched one. The architecture confines the failure mode to the region where every document already scored zero.",
+      "reproduce": "The producer needs `mud_detection` importable; drf takes no dependency on it and the tool degrades to the ablation alone without it. git clone https://github.com/verbalogicproject-creator/NLKE-mud-detection /tmp/nlke-mud && PYTHONPATH=/tmp/nlke-mud python3 tools/measure_graph_contribution.py --index index.db",
+      "correction_on_record": "drf_tail_rho was first recorded as -0.0288, sign inverted. Caught 2026-08-10 by re-running the producer before release instead of trusting the transcribed value. The verdict and magnitude are unaffected, but the sign reverses what it says: the admitted tail leans very slightly TOWARD degree rather than away from it. It survived the suite because the mud_detection checkout had been lost, so the producer could not run and the figure had quietly stopped being a measurement and become a transcription. Hence the reproduce line above.",
+      "test": "tests/test_stage1.py::test_the_nuisance_screen_can_reject_a_deliberately_unsafe_graph_signal (skips without mud_detection - an honest skip, but it means the default CI environment does not exercise this control)"
+    }
   }
 }
