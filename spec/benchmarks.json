@@ -4,7 +4,8 @@
   "corpus": {
     "source": "claude-cookbook-kg.db",
     "producer": "drf build --source <source> --out index.db",
-    "note": "266 nodes / 605 edges verified true against the source; the ingest drops 4 dangling edges and collapses 48 duplicate groups, so the index holds 553."
+    "note": "266 nodes / 605 edges verified true against the source; the ingest drops 4 dangling edges and collapses 48 duplicate groups, so the index holds 553.",
+    "verified_by": "tests/test_ingest.py::test_manifest_counts_match_database"
   },
   "reproducibility": {
     "producer": "drf bench repro --index a.db --compare b.db",
@@ -24,7 +25,8 @@
     "mismatched_positions": 0,
     "discordant_pairs": 0,
     "length_delta": 0,
-    "symmetric_difference": 0
+    "symmetric_difference": 0,
+    "verification_exempt": "The producer is the 5x3x3x2 reproducibility matrix, including subprocess and independent-rebuild axes. Re-running it inside the unit suite would take minutes and would re-measure determinism the falsifier registry already guards directly. The figures here are a report of that run, not the guarantee itself."
   },
   "chaos_control": {
     "producer": "drf bench chaos --index a.db",
@@ -85,7 +87,8 @@
     "findings": [
       "Set-based metrics are blind to ordering non-determinism. Jaccard reports 1.0000 for a pipeline returning five different orderings in five runs.",
       "Kendall's Tau of 0.9761 and RBO of 0.9942 describe a provably non-deterministic pipeline. Rounded for a report they read as 0.98 and 0.99. This is the measured reason assertions in this project use exact integers."
-    ]
+    ],
+    "verification_exempt": "Deliberately runs a broken pipeline to prove the harness can report failure. Its producer mutates the engine, so it cannot share a process with other tests. tests/test_bench.py exercises the chaos machinery; these figures report one run of it."
   },
   "sensitivity": {
     "producer": "drf bench sensitivity --index a.db",
@@ -117,7 +120,8 @@
         "reordered": "2"
       }
     ],
-    "finding": "Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees. CORRECTED 2026-08-08: 'graph parameters are live but weak' understated it. That probe nudged a parameter; ablating the signal entirely changes 2 of 23 queries and never above rank 19. The graph layer is inert, not weak. See graph_contribution."
+    "finding": "Lexical parameters dominate; graph parameters are live but weak. seed_count 10 -> 11 reorders zero of 15 corpus queries - it moves best_depth for 7 of them but never enough to change what a user sees. CORRECTED 2026-08-08: 'graph parameters are live but weak' understated it. That probe nudged a parameter; ablating the signal entirely changes 2 of 23 queries and never above rank 19. The graph layer is inert, not weak. See graph_contribution.",
+    "verification_exempt": "Probes every ranking setting across the full query set - minutes of work whose structural claim (every affects_ranking setting is live) is separately enforced by tests/test_config.py against config_schema.sensitivity_probe. The counts here are descriptive; the guarantee is tested elsewhere."
   },
   "length_normalisation": {
     "producer": "python3 tools/measure_length_norm.py --index index.db",
@@ -134,7 +138,8 @@
     "mean_top_set_length_flat": "24.9",
     "corpus_mean_length": "18.9",
     "direction_longer_shorter_equal": "9/0/6",
-    "correction": "Earlier figures of 26.2% discordance and 'top-1 changed 9 of 15' were tiebreak-dependent and are withdrawn. 7 of 15 queries have exact ties in a top set; breaking them by lowest node id gives 9, by highest gives 4. Those numbers described BM25 plus an arbitrary convention. All figures here are defined only over strictly-ordered comparisons. The directional claim survived unchanged."
+    "correction": "Earlier figures of 26.2% discordance and 'top-1 changed 9 of 15' were tiebreak-dependent and are withdrawn. 7 of 15 queries have exact ties in a top set; breaking them by lowest node id gives 9, by highest gives 4. Those numbers described BM25 plus an arbitrary convention. All figures here are defined only over strictly-ordered comparisons. The directional claim survived unchanged.",
+    "verification_exempt": "A one-off M1.2 comparison against the prior engine's scorer, which is not vendored here. The correctness claim it supports - that a padded long document cannot outrank a short exact match - is asserted directly by the hand-computed BM25 reference in tests/test_retrieval.py, which is the stronger check."
   },
   "graph": {
     "producer": "measured during M1.3, recorded in STATE.md",
@@ -145,7 +150,8 @@
     "bidirectional_mean_reach": "23.3",
     "forward_only_dead_nodes": "81/266",
     "bidirectional_dead_nodes": "5/266",
-    "finding": "Following outgoing edges only would leave 76 nodes with zero graph signal because of how a relation happened to be phrased. Directed cycles are present, so a visited set is mandatory."
+    "finding": "Following outgoing edges only would leave 76 nodes with zero graph signal because of how a relation happened to be phrased. Directed cycles are present, so a visited set is mandatory.",
+    "verification_exempt": "Recorded during M1.3 from a measurement whose producer was never packaged as a command; the entry itself says so. It is a historical note about why expansion is bidirectional, not a figure any current claim rests on. Flagged for either a real producer or deletion rather than left implicitly trusted."
   },
   "scope_limits": {
     "no_relevance_labels": "49 model-generated judgements over 7 queries now exist (stratum A). They are NOT human judgements, and the annotator authored the retrieval system - see retrieval_quality.annotator. The one quality measurement made from them is a FAIL against a margin declared in advance. No positive claim about retrieval quality is made anywhere in this repository.",
@@ -175,7 +181,8 @@
     ],
     "finding": "The advisory layer's reach is inverse to lexical success. Where stage 1 returned 20 or more documents it is structurally silent at every evaluated depth; where it returned one or two, the advisory layer can act from depth 5 down. The neural layer can only speak where lexical retrieval did badly, and is provably mute where it did well - which is what append-only subordination means, stated as a measurement rather than a design intention.",
     "second_finding": "A reachable horizon is necessary but not sufficient. The three out-of-vocabulary queries have |D| = 0, so by horizon alone the advisory layer could occupy every position - and it proposes nothing, because anchor-mode search takes its anchors from D. Anchor starvation is a separate bound from the horizon, and a recall figure on those queries would measure the starvation rather than the provider.",
-    "why_it_matters_for_M2": "A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off. Reporting that as a finding about neural retrieval would be a category error, and measuring the horizon first is what makes the error visible in advance."
+    "why_it_matters_for_M2": "A quality comparison at any depth <= |D| is guaranteed to show zero difference between provider on and off. Reporting that as a finding about neural retrieval would be a category error, and measuring the horizon first is what makes the error visible in advance.",
+    "verified_by": "tests/test_benchmarks_provenance.py::test_recorded_horizon_figures_match_a_live_run"
   },
   "retrieval_quality": {
     "producer": "python3 tools/drf eval quality --index index.db",
@@ -256,7 +263,8 @@
       "verdict": "NOT_ESTABLISHED. At n=7 at least 6 one-directional flips are required to clear alpha=0.05; there were 3-3. McNemar exact p = 1.0000 - as un-significant as the test can report.",
       "self_correction": "The figures recorded above (system nDCG 0.9064, margin +0.0303) are quoted to four decimals on a sample whose resolution is 0.143. That is spurious precision. They are the arithmetic the producer emits and are kept for reproducibility, but the DIFFERENCE between system and control is not resolvable at this sample size and must not be read as one.",
       "why_it_matters": "The declared-margin FAIL and this verdict say different things. The margin test says the system did not clear the bar. This says the sample could not have told us either way. Both are recorded because reporting only the first would imply the evidence was capable of a verdict."
-    }
+    },
+    "verified_by": "tests/test_quality.py::test_recorded_quality_figures_match_a_live_run"
   },
   "graph_contribution": {
     "producer": "python3 tools/measure_graph_contribution.py --index index.db",
@@ -288,7 +296,8 @@
     "finding": "As positioned in the sort key, the graph layer is INERT above rank 19 across the entire query set. It is not harmful and not degree-riding - it simply changes nothing a user sees. At evaluation depths 1, 5 and 10 its contribution is exactly zero on all 23 queries; at depth 20 it affects one real query.",
     "why_it_is_inert_and_why_that_is_structural": "best_depth is the FOURTH component of the sort key, after bm25_q and matched_terms. It breaks only ties that survive both, and those are rare above rank 19 on this corpus. Promoting it up the key would let graph proximity override a strictly better lexical match, which the architecture forbids by design. So the layer cannot be made influential without abandoning the ordering principle - its inertness is a consequence of the guarantee, not a tuning failure.",
     "correction_to_an_earlier_measurement": "M1.6 recorded 'graph parameters are live but weak' from a sensitivity probe that nudged graph.max_depth 2->3. That measured a nudge, not the layer. Ablation is the experiment the question actually asked, and a signal can be insensitive to its parameters while doing a great deal of work - or, as here, none.",
-    "attribution": "Layers 2 and 3 are from mud-detection (github.com/verbalogicproject-creator/NLKE-mud-detection, Apache-2.0). drf takes NO dependency on it: tools/measure_graph_contribution.py degrades to the ablation alone if it is absent, and nothing is vendored."
+    "attribution": "Layers 2 and 3 are from mud-detection (github.com/verbalogicproject-creator/NLKE-mud-detection, Apache-2.0). drf takes NO dependency on it: tools/measure_graph_contribution.py degrades to the ablation alone if it is absent, and nothing is vendored.",
+    "verified_by": "tests/test_benchmarks_provenance.py::test_recorded_ablation_figures_match_a_live_run"
   },
   "graph_candidate_admission": {
     "producer": "python3 tools/measure_graph_contribution.py --index index.db  (cost/benefit measured with tools/drf bench sensitivity and drf eval invariance)",
@@ -315,6 +324,7 @@
       "reproduce": "The producer needs `mud_detection` importable; drf takes no dependency on it and the tool degrades to the ablation alone without it. git clone https://github.com/verbalogicproject-creator/NLKE-mud-detection /tmp/nlke-mud && PYTHONPATH=/tmp/nlke-mud python3 tools/measure_graph_contribution.py --index index.db",
       "correction_on_record": "drf_tail_rho was first recorded as -0.0288, sign inverted. Caught 2026-08-10 by re-running the producer before release instead of trusting the transcribed value. The verdict and magnitude are unaffected, but the sign reverses what it says: the admitted tail leans very slightly TOWARD degree rather than away from it. It survived the suite because the mud_detection checkout had been lost, so the producer could not run and the figure had quietly stopped being a measurement and become a transcription. Hence the reproduce line above.",
       "test": "tests/test_stage1.py::test_the_nuisance_screen_can_reject_a_deliberately_unsafe_graph_signal (skips without mud_detection - an honest skip, but it means the default CI environment does not exercise this control)"
-    }
+    },
+    "verification_exempt": "The cost/benefit figures come from three producers run together, and the positive control needs mud_detection, which drf takes no dependency on - so a live check here would skip in the default environment and prove nothing. That is exactly the environmental vacuity that let drf_tail_rho ship with an inverted sign, so the mitigation is the recorded `reproduce` command plus re-running it at every release, not a test that quietly does not run."
   }
 }
