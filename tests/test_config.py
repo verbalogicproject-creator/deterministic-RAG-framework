@@ -172,7 +172,19 @@ def test_every_ranking_key_changes_the_content_hash():
     for key in ranking_keys():
         config = Config()
         spec = SCHEMA[key]
-        config.set(key, spec["default"] + (1 if spec["type"] == "integer" else 0.1))
+        # Perturb with the schema's own `sensitivity_probe` rather than by
+        # arithmetic on the default. The arithmetic version did
+        # `default + 0.1` for anything non-integer, which produced `0.1` for a
+        # boolean setting and failed type validation the moment
+        # `graph.admit_candidates` was added. The probe is already declared as
+        # "a different valid value that should change behaviour", so using it
+        # keeps this test type-agnostic and means a new setting of any type
+        # needs no edit here.
+        probe = spec.get("sensitivity_probe")
+        assert probe is not None and probe != spec["default"], (
+            f"{key} affects ranking but declares no distinct sensitivity_probe"
+        )
+        config.set(key, probe)
         assert config.content_hash() != baseline, (
             f"{key} affects ranking but is not covered by the content hash"
         )

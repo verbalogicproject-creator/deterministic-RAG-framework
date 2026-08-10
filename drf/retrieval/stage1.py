@@ -61,6 +61,12 @@ from . import bm25, graph
 DEFAULT_SEED_COUNT = 10
 DEFAULT_MAX_DEPTH = 2
 
+# Whether graph-reached documents that contain no query term enter D at all.
+# See `graph_only_candidates`. The default is a policy choice with a measured
+# basis, recorded in spec/benchmarks.json:graph_candidate_admission - not a
+# guess, and not a value tuned against an outcome.
+DEFAULT_ADMIT_GRAPH_CANDIDATES = False
+
 
 class Ranked(NamedTuple):
     """One result in the authoritative order."""
@@ -102,6 +108,56 @@ def select_seeds(scored: list[bm25.Scored], seed_count: int) -> list[str]:
     return [s.node_id for s in ordered[:seed_count]]
 
 
+def graph_only_candidates(
+    scored: list[bm25.Scored],
+    depths: dict[str, int],
+    doc_lens: dict[str, int],
+) -> list[bm25.Scored]:
+    """Documents the graph reached that contain no query term at all.
+
+    Scored **exactly zero**, with zero matched terms. That is not a placeholder
+    standing in for an unknown value - it is the true BM25 score of a document
+    with no query term in it, so nothing is being invented. The number is what
+    the existing scorer would compute; it is simply cheaper to state than to
+    derive.
+
+    **Why zero is safe, and why that is not an accident.** The sort key opens
+    with `-bm25_q`, so a document at zero sorts strictly below every document
+    with a positive score. That holds only because `bm25.idf` uses
+    `log(... + 1.0)`, which floors idf at zero and makes every real match score
+    positive - measured across the corpus query set, the minimum non-zero score
+    is 1,017,536,991 and there are no negative or zero scores at all. That `+1`
+    was added in M1.2 for a different reason (a negative idf would let a
+    document matching a common term rank below one matching nothing, which
+    cannot be explained to a user). It turns out to be the precondition for
+    admitting unmatched documents safely. Remove it and this function silently
+    starts promoting unmatched documents above matched ones.
+
+    **The ordering consequence, stated plainly.** Within the admitted tail
+    every document has `bm25_q = 0` and `matched_terms = 0`, so the third
+    component - `best_depth` - becomes the *primary* discriminator. This is the
+    one place in the design where graph proximity actually decides an order,
+    and it decides it only among documents that lexical retrieval scored
+    identically at zero. No weight, no blend: the same lexicographic key,
+    reaching its third component for the first time in earnest.
+
+    Measured through M2.2: as a *tiebreak* the graph signal is inert above rank
+    19 across the whole query set. This is the re-scope that gives it a job
+    where it can act without ever displacing a lexical match.
+    """
+    already = {s.node_id for s in scored}
+    return [
+        bm25.Scored(
+            node_id=node_id,
+            score_q=0,
+            matched_terms=0,
+            doc_len=doc_lens.get(node_id, 0),
+        )
+        for node_id in sorted(depths)
+        if node_id not in already
+    ]
+
+
 def rank_candidates(
     scored: list[bm25.Scored], depths: dict[str, int]
 ) -> list[Ranked]:
@@ -123,7 +179,8 @@ def rank_candidates(
     "stage1.rank",
     determinism="deterministic",
     authority="authoritative",
-    inputs=("query_terms", "index_hash", "seed_count", "max_depth", "k1", "b"),
+    inputs=("query_terms", "index_hash", "seed_count", "max_depth", "k1", "b",
+            "admit_graph_candidates"),
 )
 def rank(
     *,
@@ -134,6 +191,7 @@ def rank(
     max_depth: int = DEFAULT_MAX_DEPTH,
     k1: float = bm25.K1,
     b: float = bm25.B,
+    admit_graph_candidates: bool = DEFAULT_ADMIT_GRAPH_CANDIDATES,
 ) -> ActionOutput:
     """Produce D, the authoritative total order.
 
@@ -143,10 +201,11 @@ def rank(
     """
     postings = postings_for_terms(conn, query_terms)
     n_docs, total_len = corpus_totals(conn)
+    doc_lens = doc_lengths(conn)
     scored = bm25.score_documents(
         postings=postings,
         dfs=df_for_terms(conn, query_terms),
-        doc_lens=doc_lengths(conn),
+        doc_lens=doc_lens,
         n_docs=n_docs,
         total_len=total_len,
         k1=k1,
@@ -154,12 +213,23 @@ def rank(
     )
     seeds = select_seeds(scored, seed_count)
     depths = graph.expand(conn, seeds, max_depth) if seeds else {}
-    ordered = rank_candidates(scored, depths)
+
+    # Seeds come from the lexical hits, so an all-out-of-vocabulary query has
+    # no seeds, reaches nothing, and admits nothing. Graph admission therefore
+    # cannot rescue an OOV query - the fix for that remains a Stage 1 lexical
+    # fix (character n-grams), exactly as recorded in M1.
+    admitted = (
+        graph_only_candidates(scored, depths, doc_lens)
+        if admit_graph_candidates else []
+    )
+    ordered = rank_candidates(scored + admitted, depths)
 
     return ActionOutput(
         value=[list(r) for r in ordered],
         evidence=(
             f"candidates={len(ordered)}",
+            f"lexical={len(scored)}",
+            f"graph_admitted={len(admitted)}",
             f"seeds={len(seeds)}",
             f"max_depth={max_depth}",
             f"graph_reached={len(depths)}",

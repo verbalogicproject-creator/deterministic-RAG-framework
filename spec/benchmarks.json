@@ -289,5 +289,19 @@
     "why_it_is_inert_and_why_that_is_structural": "best_depth is the FOURTH component of the sort key, after bm25_q and matched_terms. It breaks only ties that survive both, and those are rare above rank 19 on this corpus. Promoting it up the key would let graph proximity override a strictly better lexical match, which the architecture forbids by design. So the layer cannot be made influential without abandoning the ordering principle - its inertness is a consequence of the guarantee, not a tuning failure.",
     "correction_to_an_earlier_measurement": "M1.6 recorded 'graph parameters are live but weak' from a sensitivity probe that nudged graph.max_depth 2->3. That measured a nudge, not the layer. Ablation is the experiment the question actually asked, and a signal can be insensitive to its parameters while doing a great deal of work - or, as here, none.",
     "attribution": "Layers 2 and 3 are from mud-detection (github.com/verbalogicproject-creator/NLKE-mud-detection, Apache-2.0). drf takes NO dependency on it: tools/measure_graph_contribution.py degrades to the ablation alone if it is absent, and nothing is vendored."
+  },
+  "graph_candidate_admission": {
+    "producer": "python3 tools/measure_graph_contribution.py --index index.db  (cost/benefit measured with tools/drf bench sensitivity and drf eval invariance)",
+    "measured": "2026-08-08",
+    "what_it_is": "The M2.2 re-scope: graph-reached documents containing no query term admitted into D, scored exactly zero, ordered strictly below every lexical match. Within that tail all scores are 0 and all matched_terms are 0, so best_depth becomes the primary discriminator - the one place graph proximity actually decides an order.",
+    "setting": "graph.admit_candidates, default false",
+    "invariant_holds": "Yes. Across 23 queries, zero matched documents rank below an unmatched one, and the lexical prefix is preserved elementwise. Safe only because bm25.idf uses log(...+1.0), which floors idf at zero: minimum observed score is 1017536991 and there are no zero or negative scores.",
+    "cost_candidate_growth": "457 -> 2267 candidates over 23 queries (4.96x). Per-query |D| grows by 16 to 137.",
+    "cost_advisory_horizon": "Collapses from 16 of 23 queries having a reachable evaluation depth to 1. Admitting graph candidates authoritatively takes the tail positions the advisory layer would occupy - the two are in direct competition for the same space.",
+    "benefit_measured": "ZERO. Across the 7 labelled queries it retrieves no additional relevant document, and the one relevant document outside D ('Orchestrator-Workers' for 'sub agents') is still not reached at depth 2 from 10 seeds.",
+    "mud_detection_verdict": "REDUNDANT. complementarity 0.0000, rescue_rate 0.0, rho_mean 0.726. Item sets genuinely differ here, so unlike the tiebreak case this verdict is a measurement rather than a structural artefact.",
+    "nuisance_verdict": "CLEAN (rho -0.017, promoted/corpus degree ratio 1.00x). Not the parent-boost pathology - simply no benefit.",
+    "sensitivity": "Reorders 20 of 23 queries - the largest blast radius of any setting in the system, exceeding ranking.b's 13. Maximum disruption, zero measured gain.",
+    "decision": "Implemented, tested, invariant-checked, and DEFAULT OFF. Enabling it would be the exact failure mud-detection exists to prevent: an architecturally reasonable change that wins no recall, and here it would additionally silence the advisory layer. The evidence, not the reasoning, decides the default."
   }
 }

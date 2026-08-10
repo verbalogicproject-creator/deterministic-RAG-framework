@@ -85,6 +85,15 @@
       ],
       "affects_ranking": false,
       "summary": "Output rendering."
+    },
+    "graph.admit_candidates": {
+      "type": "boolean",
+      "default": false,
+      "affects_ranking": true,
+      "action_input": "admit_graph_candidates",
+      "summary": "Admit graph-reached documents that contain no query term into D, scored zero and ordered strictly below every lexical match.",
+      "sensitivity_probe": true,
+      "why_default_false": "Measured 2026-08-08, not chosen. Enabling it grows the candidate set 4.96x (457 -> 2267 over 23 queries), retrieves ZERO additional relevant documents on the 7 labelled queries, and collapses the advisory horizon from 16 queries with a reachable evaluation depth to 1. mud-detection returns REDUNDANT with complementarity 0.0000 and rescue_rate 0.0 - it buys no recall and costs the neural layer its only opening. See spec/benchmarks.json:graph_candidate_admission."
     }
   },
   "sensitivity": {

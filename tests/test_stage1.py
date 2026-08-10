@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT))
 
 from drf.contract import reset_replay_log  # noqa: E402
 from drf.ingest.build import build_index  # noqa: E402
+from drf.bench.repro import load_queries  # noqa: E402
 from drf.retrieval import graph, stage1  # noqa: E402
 from drf.retrieval.tokenize import tokenize  # noqa: E402
 from drf.store import (  # noqa: E402
@@ -346,3 +347,72 @@ def test_rank_justification_declares_the_right_axes(index):
     assert justification.authority == "authoritative"
     assert justification.confidence is None
     assert justification.evidence
+
+
+# --------------------------------------------------------------------------
+# M2.2 - graph candidate admission, and the control that makes CLEAN mean
+# something. `spec/config_schema.json:graph.admit_candidates` is default OFF
+# on measured grounds; these tests hold whichever way it is set.
+# --------------------------------------------------------------------------
+
+@requires_source
+def test_an_admitted_document_can_never_outrank_a_matched_one(index):
+    """The invariant the whole re-scope rests on.
+
+    Admitted documents score exactly zero. That is only *safe* because
+    `bm25.idf` uses `log(... + 1.0)`, which floors idf at zero so every real
+    match scores strictly positive. Remove the `+1` and unmatched documents
+    start outranking matched ones silently. Checked over the whole query set
+    rather than argued from the formula.
+    """
+    checked = 0
+    for query in load_queries():
+        value, _ = stage1.rank(
+            conn=index["conn"], query_terms=tokenize(query["text"]),
+            index_hash=index["hash"], admit_graph_candidates=True,
+        )
+        seen_unmatched = False
+        for row in (stage1.Ranked(*r) for r in value):
+            if row.bm25_q == 0:
+                seen_unmatched = True
+            else:
+                assert not seen_unmatched, (
+                    f"{query['id']}: a matched document (score {row.bm25_q}) "
+                    f"ranks below an unmatched one"
+                )
+                checked += 1
+    assert checked > 0, "no matched documents were examined; the test is vacuous"
+
+
+@requires_source
+def test_admission_never_removes_or_reorders_the_lexical_prefix(index):
+    """Admission may only append. The same shape as merge's postcondition."""
+    for query in load_queries():
+        terms = tokenize(query["text"])
+        off, _ = stage1.rank(conn=index["conn"], query_terms=terms,
+                             index_hash=index["hash"],
+                             admit_graph_candidates=False)
+        on, _ = stage1.rank(conn=index["conn"], query_terms=terms,
+                            index_hash=index["hash"],
+                            admit_graph_candidates=True)
+        lexical = [stage1.Ranked(*r).node_id for r in off]
+        combined = [stage1.Ranked(*r).node_id for r in on]
+        assert combined[:len(lexical)] == lexical, query["id"]
+
+
+@requires_source
+def test_admission_cannot_rescue_an_out_of_vocabulary_query(index):
+    """Seeds come from the lexical hits, so no hits means no expansion.
+
+    Recorded in M1 as a scope limit, and asserted here because the re-scope is
+    the obvious thing someone would expect to fix it. It does not: the fix
+    remains a Stage 1 lexical one (character n-grams).
+    """
+    oov = [q for q in load_queries() if q["id"] in ("e01", "e02", "e03")]
+    assert oov, "the out-of-vocabulary queries are missing from the query set"
+    for query in oov:
+        value, _ = stage1.rank(
+            conn=index["conn"], query_terms=tokenize(query["text"]),
+            index_hash=index["hash"], admit_graph_candidates=True,
+        )
+        assert value == [], query["id"]
