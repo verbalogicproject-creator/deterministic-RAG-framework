@@ -1,7 +1,7 @@
 # Project State — resume here
 
-**Last checkpoint:** M2.2 opened — **the graph question is settled, with no labels.** The graph layer is *inert*, not weak. 252 tests, isolation clean (2026-08-08). Released `v0.0.8`.
-**Next:** decide what to do about the graph layer (three options in the M2.2 section), then expand the query set.
+**Last checkpoint:** M2.2 **closed.** The graph re-scope was built, measured, and **rejected on its own evidence** — implemented, tested, default OFF. The nuisance screen now has a positive control, so `CLEAN` finally means something. 260 tests, isolation clean (2026-08-10). Released `v0.0.9`.
+**Next:** expand the query set beyond 23 (the graph decision was underpowered at n=1 labelled query), then M2.3 BGE re-embedding.
 **Full build plan:** `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` — read this first, it has the complete M1.0–M1.8 sequence, architecture, and verification steps.
 
 ---
@@ -668,6 +668,68 @@ mud-detection exists because a **`parent-boost`** signal — propagate a matched
 drf's graph layer contributes `best_depth` from BFS expansion. **That is structurally the same pathology risk**, and it is the open question M2.2 inherits ("does the graph layer earn its place?"). Layer 3 tests exactly this — nuisance-correlated signal against a `degree` map — and needs **no evaluation run**. It should be the first thing M2.2 does, before any new labelling.
 
 Its `fixtures/calibration/` also holds 49 queries over a 150-item KG with gold labels and a degree map — measured, not synthetic. A different corpus, so not a drop-in eval set, but it can calibrate the harness against a case with a known answer.
+
+---
+
+## M2.2 CLOSED — 2026-08-10, `v0.0.9`
+
+Three questions were inherited. All three are now answered, and **none of them needed a label.**
+
+### 1. Does the graph layer earn its place as a tiebreak? — **No. It is inert.**
+
+Ablation (withhold the depth map entirely; sort key untouched, so the *signal* is isolated rather than the machinery) changes **2 of 23** queries and never above **rank 20**. At evaluation depths 1, 5 and 10 its contribution is exactly zero on every query.
+
+**Ablation ≠ parameter sensitivity.** M1.6 nudged `graph.max_depth` 2→3, saw 2/23 reorder, and concluded "live but weak". That measured a nudge. Removing the signal is a different experiment, and it is the one that was actually being asked. A layer can be insensitive to its parameters and still do enormous work — or, as here, none.
+
+The inertness is **structural, not a tuning failure**: `best_depth` is the third key component, after `bm25_q` and `matched_terms`. Promoting it would let graph proximity override a strictly better lexical match, which the architecture forbids. It cannot be made influential without abandoning the ordering principle.
+
+### 2. Should graph-reached documents enter D? — **Built, measured, rejected.**
+
+Re-scoped from tie-breaking to **candidate generation**: unmatched documents admitted at score exactly 0, ordered strictly below every lexical match, with `best_depth` becoming the primary discriminator inside that tail — the one place graph proximity genuinely decides an order. Safe only because `bm25.idf` uses `log(…+1.0)`, flooring idf at zero (minimum observed real score 1,017,536,991). That `+1` was added in M1.2 for an unrelated reason and turns out to be the precondition for admitting unmatched documents at all.
+
+| | Measured |
+|---|---|
+| Candidate growth | 457 → 2,267 over 23 queries (**4.96×**) |
+| Advisory horizon | 16 of 23 queries with a reachable depth → **1** |
+| Relevant documents gained | **Zero** |
+| Invariant | Holds — 0 matched documents displaced, lexical prefix preserved elementwise |
+| mud-detection | REDUNDANT (complementarity 0.0000, rescue_rate 0.0) |
+| Sensitivity | Reorders **20 of 23** — the largest blast radius of any setting, exceeding `ranking.b`'s 13 |
+
+**Decision: implemented, tested, invariant-checked, `DEFAULT OFF`.** Maximum disruption, zero measured gain — and it would additionally silence the advisory layer, since authoritative tail positions and advisory positions are in direct competition for the same space. This is exactly the failure mud-detection exists to prevent: an architecturally reasonable change that wins nothing. The evidence decides the default, not the reasoning.
+
+### 3. Is `best_depth` the parent-boost pathology? — **No, and now that verdict is worth something.**
+
+Layer 3 returned CLEAN for every real drf configuration. **A screen that only ever returns CLEAN is a claim about the screen**, not about the signal — the chaos-control lesson from M1.6 applied to a borrowed tool.
+
+So: a **positive control**. Identical architecture, admission and sort key; the admitted tail ordered by node **degree** instead of `best_depth` — the parent-boost pathology reproduced inside drf's own ordering, the narrowest edit that makes the signal unsafe.
+
+| | rho | verdict |
+|---|---|---|
+| drf admitted tail | **+0.0288** | CLEAN |
+| Deliberately unsafe tail | **+0.6394** | NUISANCE_CORRELATED |
+
+The screen separates them. Note what the construction also shows: the pathology can **only** be built inside the admitted tail, because the sort key opens with `-bm25_q` and no amount of connectivity lifts an unmatched document above a matched one. The architecture confines the failure mode to the region where everything already scored zero.
+
+### The release-day finding: a measurement had decayed into a transcription
+
+`drf_tail_rho` was recorded as **−0.0288**. The producer emits **+0.0288**. Sign inverted. Caught only by re-running the producer before tagging.
+
+It had shipped through a full structural audit with a green suite, because **nothing ever ran the producer** — the `mud_detection` checkout it needs had been lost from `/tmp`, so the figure had silently stopped being a measurement. No event marked the transition. Verdict and magnitude were unaffected, but the sign reverses the story: the tail leans very slightly *toward* degree, not away from it.
+
+**This is the third instance of one defect.**
+
+| Where | Hand-maintained collection | How it drifted |
+|---|---|---|
+| M1.6 registry test | invariants listed literally | new invariant → still green |
+| `test_verify_reports_every_difference` | `== 4` | `labels_hash` joined the freeze |
+| M2.2 | *which* benchmark sections get a live-run check | 1 of 10 checked, 9 undeclared |
+
+Fixed the same way as the first two — **derive the collection**. `tests/test_benchmarks_provenance.py` walks `spec/benchmarks.json`, and every section carrying a `producer` must declare `verified_by` (naming a test that re-runs it, whose existence is checked) or `verification_exempt` (a reason longer than a shrug). A new section cannot be silently unverified. Two new live-run checks landed with it: the graph ablation and the advisory horizon — both label-free, both falsified to confirm they can fail.
+
+**Standing rule added:** re-run every producer before tagging a release. A recorded `reproduce` command is now part of any section whose producer needs an optional dependency.
+
+**Known residual:** the positive-control test skips without `mud_detection`, so the default environment does not exercise it. That is honest but it is environmental vacuity — the strongest evidence is the most fragile check. Mitigated by the recorded reproduce command, not solved.
 
 ---
 

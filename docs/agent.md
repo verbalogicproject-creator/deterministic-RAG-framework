@@ -8,7 +8,7 @@
 Read this before changing anything. It states what is enforced, what will raise,
 and which assumptions are already measured so you do not re-derive them.
 
-**Spec hash** `033060b7534a8b1cb2e8ec26ca34c0302b2026c57825635dc88876874e3936eb` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
+**Spec hash** `30dd5581cb473080806e576d33196c3d4303e7d90b23d4ba458b575254e02222` · **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`
 
 ## Verified facts — do not re-measure, do not assume otherwise

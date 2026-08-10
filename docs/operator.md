@@ -84,7 +84,7 @@ changes results:
 
 ## Settings
 
-9 settings, 4 of which affect ranking. Only
+10 settings, 5 of which affect ranking. Only
 those are part of a configuration's identity — changing how many results you
 display does not make it a different computation.
 
@@ -93,6 +93,7 @@ display does not make it a different computation.
 | display.explain | False | no | Print the justification trace. |
 | display.format | text | no | Output rendering. |
 | display.k | 10 | no | How many results to print. Presentation only. |
+| graph.admit_candidates | False | yes | Admit graph-reached documents that contain no query term into D, scored zero and ordered strictly below every lexical match. |
 | graph.max_depth | 2 | yes | Hop limit for bidirectional expansion. |
 | graph.seed_count | 10 | yes | How many top lexical hits seed graph expansion. |
 | neural.limit | 10 | no | Maximum advisory proposals appended below D. |

@@ -1,7 +1,7 @@
 # Deterministic RAG — Progress Report & Source of Truth
 
-**Created:** 2026-08-07 · **Updated:** 2026-08-08 (filename keeps the creation date; it is referenced elsewhere)
-**Status:** **M1 complete. M2.0 and M2.1 complete — the first quality measurement is a FAIL, and at n=7 the statistical verdict is NOT_ESTABLISHED.** A structural-integrity audit ran before M2.2 and found nine issues, all fixed. 252 tests, 24 falsifiers, all files pass in isolation. Released `v0.0.7` at <https://github.com/verbalogicproject-creator/deterministic-RAG-framework>.
+**Created:** 2026-08-07 · **Updated:** 2026-08-10 (filename keeps the creation date; it is referenced elsewhere)
+**Status:** **M1 complete. M2.0, M2.1 and M2.2 complete.** The first quality measurement is a FAIL, and at n=7 the statistical verdict is NOT_ESTABLISHED. M2.2 settled all three deferred graph questions **without a single label**, and rejected its own re-scope on the evidence. 260 tests, 24 falsifiers, all files pass in isolation. Released `v0.0.9` at <https://github.com/verbalogicproject-creator/deterministic-RAG-framework>.
 **Purpose:** Persistent system atlas, plan, and context. This document supersedes any claim made in the recovered source project's own documentation.
 
 > **Reading order for a fresh session:** this file → `STATE.md` (resume point) → `~/.claude/plans/plan-step-1-out-crystalline-firefly.md` (full build plan).
@@ -25,6 +25,10 @@ Reproducibility is measured at **28 cells / 1 distinct digest / 0 discordant pai
 M2.0 built the **quality instrument before the labels**, so that "is the harness right?" and "is the system good?" are not the same experiment. It can be checked today three ways: a hand-computed nDCG reference, properties true of any label set, and the advisory horizon, which needs no labels at all.
 
 **No positive claim is made about retrieval quality.** M2.1 produced 49 model-generated judgements over 7 queries; the system **fails** the margin declared in advance at every depth, and at n=7 the sample cannot settle the question either way (McNemar exact p = 1.0000; 6 one-directional flips needed, 3-3 observed). Both facts are recorded — the margin says the bar was not cleared, the statistical verdict says the evidence could not have cleared it.
+
+**M2.2 (2026-08-10) answered three questions that had been deferred since M1 as "needing labels". None of them did.** The graph tiebreak is **inert** — ablating the signal entirely changes 2 of 23 queries and never above rank 20, and that inertness is a consequence of the ordering guarantee rather than a tuning failure. The re-scope that would have given it real work — admitting graph-reached documents into D as zero-scored candidates — was built, measured, and **rejected**: 4.96× candidate growth, the advisory horizon collapsing from 16 reachable queries to 1, and **zero** additional relevant documents. It ships implemented, tested and **default OFF**. A **positive control** was added to the nuisance screen (the admitted tail re-ordered by node degree, reproducing the parent-boost pathology inside drf's own sort key), which separates cleanly at rho +0.6394 against the real signal's +0.0288 — so the CLEAN verdict is now a statement about the signal rather than about the screen.
+
+**One measurement had quietly decayed into a transcription**, and was caught on release day by re-running the producer: `drf_tail_rho` was recorded with an inverted sign because the optional dependency its producer needs had been lost from `/tmp`, so nothing had run it in days. The suite stayed green throughout. This was the **third** instance of one recurring defect — a collection maintained by hand — and it is fixed the same way as the previous two, by deriving the collection: every section of `spec/benchmarks.json` must now declare a `verified_by` test or a written `verification_exempt` reason, enforced by `tests/test_benchmarks_provenance.py`.
 
 ---
 
@@ -334,15 +338,23 @@ Two consequences: exact ties within D **cannot occur** (so neural tie-breaking i
 | **M2.0** | `bench/{quality,controls,labels,evaluate}`, `spec/evaluation.json`, `drf eval` | Hand-computed nDCG reference; oracle dominance and permutation invariance on *any* labels; the advisory horizon | ✅ |
 | **M2.1** | Relevance judgements | 49 graded pairs (stratum A), model-generated, graded blind to rank | ✅ — result is a **FAIL** against the declared margin; NOT_ESTABLISHED at n=7 |
 | **AUDIT** | Structural-integrity cycle before M2.2 | Nine findings: a test pinning an expired premise, metrics able to exceed 1.0, four provenance gaps, three stale claims | ✅ |
-| **M2.2** | Query-set expansion, then the three deferred decisions | weighted `s1_q`; graph-only candidates in D; does the graph layer earn its place | ⬜ |
+| **M2.2** | The three deferred graph decisions, settled without labels | Tiebreak **inert** (ablation 2/23, never above rank 20); graph-only candidates **built and rejected** (4.96× cost, zero gain, default OFF); parent-boost pathology **ruled out** against a positive control that separates at rho +0.6394 vs +0.0288 | ✅ |
+| **PROV** | Benchmark provenance guard | A recorded figure had decayed into a transcription with an inverted sign; every measured section must now declare `verified_by` or `verification_exempt`, derived from the spec rather than hand-listed | ✅ |
 | **M2.3** | BGE re-embedding, compared against labels | ReproRAG: embedding choice dominates variance, so switch *after* labels exist | ⬜ |
 | **M2.4** | Remote provider | Cut from M1 by measurement; needs M2.3 | ⬜ |
 
 **M1.3 must precede M1.4** — subordination is only meaningful against an already-total order. **M2.0 must precede M2.1** for the same reason in a different register: an instrument validated on the data it is about to judge cannot be distinguished from the judgement.
 
-### ⚠️ M2.2 was re-scoped by measurement
+### ⚠️ M2.2 was re-scoped twice by measurement — and the second re-scope removed the need for labels
 
-"Does the graph layer earn its place?" cannot be settled by labelling. Only **2 of 23** queries reorder under any graph setting, and one of those is a synthetic 13-term edge case — a real sample size of **one**. It needs **more queries**, chosen to stress graph structure, before any judgement is worth making. That is why query-set expansion now leads M2.2 rather than following it.
+**First re-scope (2026-08-08).** "Does the graph layer earn its place?" looked like a labelling question. Only **2 of 23** queries reorder under any graph *setting*, and one is a synthetic 13-term edge case — a real sample size of **one**. So query-set expansion was moved ahead of the judgement.
+
+**Second re-scope (2026-08-10), which superseded it.** The premise was wrong. The question does not need labels at all, because two label-free measurements settle it:
+
+1. **Ablation, not parameter sensitivity.** Nudging `graph.max_depth` measures a nudge. *Withholding the depth map entirely* measures the layer — and it changes 2/23 queries, never above rank 20, exactly zero at depths 1, 5 and 10. A layer can be insensitive to its parameters while doing a great deal of work; here it does none.
+2. **Nuisance correlation** (mud-detection layer 3), which asks whether the signal promotes well-connected rather than relevant items. It does not — and, with the positive control added, that verdict is falsifiable rather than merely reassuring.
+
+**The methodological lesson, recorded because it generalises:** the reflex "this needs labels" is often a category error. Ask first whether the question is about *what the system returns* (labels) or about *whether a component changes anything at all* (ablation). The second is cheaper, needs no judgement, and here it was the whole answer. Query-set expansion is still wanted — but as M2 work in its own right, not as a precondition for a decision it was never needed for.
 
 **M1.3 must precede M1.4** — subordination is only meaningful against an already-total order.
 

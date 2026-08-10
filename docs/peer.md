@@ -9,7 +9,7 @@ A retrieval framework whose ranking path contains no model. A neural layer may
 be attached under a mechanically enforced guarantee that it can never change an
 authoritative result — only append below it.
 
-**Spec hash** `033060b7534a8b1cb2e8ec26ca34c0302b2026c57825635dc88876874e3936eb`
+**Spec hash** `30dd5581cb473080806e576d33196c3d4303e7d90b23d4ba458b575254e02222`
 **Index** `90ab5db969588b5a2a41beddce996cd3bf25d27b28d9791f984416d8b33cf72a`
 **Versions** parser `1.1.0`, ranker `1.0.0`, id-schema `1`, manifest `1`
 
@@ -261,7 +261,7 @@ runtime, so falsifying them would prove the guard rather than the test.
 
 ## Configuration
 
-9 settings, of which 4 can influence ranking.
+10 settings, of which 5 can influence ranking.
 A configuration's content hash covers exactly those, so two configurations
 differing only in presentation are provably the same computation. Neural
 settings are excluded on the same grounds as display settings: they cannot
@@ -272,6 +272,7 @@ influence the authoritative prefix.
 | display.explain | False | no | Print the justification trace. |
 | display.format | text | no | Output rendering. |
 | display.k | 10 | no | How many results to print. Presentation only. |
+| graph.admit_candidates | False | yes | Admit graph-reached documents that contain no query term into D, scored zero and ordered strictly below every lexical match. |
 | graph.max_depth | 2 | yes | Hop limit for bidirectional expansion. |
 | graph.seed_count | 10 | yes | How many top lexical hits seed graph expansion. |
 | neural.limit | 10 | no | Maximum advisory proposals appended below D. |
